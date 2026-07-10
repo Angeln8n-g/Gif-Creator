@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import type { FrameImage, CropSettings, TextOverlay, StickerOverlay } from '../types';
 
 /**
@@ -296,6 +296,8 @@ interface FramePreviewCanvasProps {
   /** Override stickers for live preview while editing */
   stickersOverride?: StickerOverlay[];
   className?: string;
+  onTextChange?: (text: TextOverlay | undefined) => void;
+  onStickersChange?: (stickers: StickerOverlay[]) => void;
 }
 
 export function FramePreviewCanvas({
@@ -304,11 +306,213 @@ export function FramePreviewCanvas({
   textOverride,
   stickersOverride,
   className = '',
+  onTextChange,
+  onStickersChange,
 }: FramePreviewCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
   const animRef = useRef<number>(0);
   const startTimeRef = useRef<number>(0);
+
+  const isDraggingRef = useRef<boolean>(false);
+  const dragTargetRef = useRef<{ type: 'text' | 'sticker'; id?: string } | null>(null);
+  const activeGuidesRef = useRef<{ x?: number; y?: number }>({});
+  const [cursorStyle, setCursorStyle] = useState<'default' | 'grab' | 'grabbing'>('default');
+
+  // Load image
+  useEffect(() => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.src = frame.previewUrl;
+    img.onload = () => { imgRef.current = img; };
+    return () => { imgRef.current = null; };
+  }, [frame.previewUrl]);
+
+  const checkHoverTarget = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (isDraggingRef.current) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const mx = (e.clientX - rect.left) * scaleX;
+    const my = (e.clientY - rect.top) * scaleY;
+
+    const text = textOverride !== undefined ? textOverride : frame.text;
+    const stickers = stickersOverride !== undefined ? stickersOverride : frame.stickers;
+
+    let isOverAny = false;
+
+    if (text && text.content.trim()) {
+      const tx = (text.x / 100) * canvas.width;
+      const ty = (text.y / 100) * canvas.height;
+      const fontSize = text.fontSize * (canvas.width / 640);
+      const textWidth = text.content.length * fontSize * 0.6;
+      const halfW = textWidth / 2;
+      const halfH = fontSize / 2;
+
+      if (Math.abs(mx - tx) <= Math.max(halfW, 40) && Math.abs(my - ty) <= Math.max(halfH, 20)) {
+        isOverAny = true;
+      }
+    }
+
+    if (!isOverAny && stickers && stickers.length > 0) {
+      for (const sticker of stickers) {
+        const sx = (sticker.x / 100) * canvas.width;
+        const sy = (sticker.y / 100) * canvas.height;
+        const size = sticker.size * (canvas.width / 640);
+        const halfSize = size / 2;
+
+        if (Math.abs(mx - sx) <= Math.max(halfSize, 25) && Math.abs(my - sy) <= Math.max(halfSize, 25)) {
+          isOverAny = true;
+          break;
+        }
+      }
+    }
+
+    setCursorStyle(isOverAny ? 'grab' : 'default');
+  };
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const mx = (e.clientX - rect.left) * scaleX;
+    const my = (e.clientY - rect.top) * scaleY;
+
+    const text = textOverride !== undefined ? textOverride : frame.text;
+    const stickers = stickersOverride !== undefined ? stickersOverride : frame.stickers;
+
+    // Check if clicked text
+    if (text && text.content.trim()) {
+      const tx = (text.x / 100) * canvas.width;
+      const ty = (text.y / 100) * canvas.height;
+      const fontSize = text.fontSize * (canvas.width / 640);
+      const textWidth = text.content.length * fontSize * 0.6;
+      const halfW = textWidth / 2;
+      const halfH = fontSize / 2;
+
+      if (Math.abs(mx - tx) <= Math.max(halfW, 40) && Math.abs(my - ty) <= Math.max(halfH, 20)) {
+        isDraggingRef.current = true;
+        dragTargetRef.current = { type: 'text' };
+        setCursorStyle('grabbing');
+        canvas.setPointerCapture(e.pointerId);
+        return;
+      }
+    }
+
+    // Check if clicked any sticker
+    if (stickers && stickers.length > 0) {
+      for (let i = stickers.length - 1; i >= 0; i--) {
+        const sticker = stickers[i];
+        const sx = (sticker.x / 100) * canvas.width;
+        const sy = (sticker.y / 100) * canvas.height;
+        const size = sticker.size * (canvas.width / 640);
+        const halfSize = size / 2;
+
+        if (Math.abs(mx - sx) <= Math.max(halfSize, 25) && Math.abs(my - sy) <= Math.max(halfSize, 25)) {
+          isDraggingRef.current = true;
+          dragTargetRef.current = { type: 'sticker', id: sticker.id };
+          setCursorStyle('grabbing');
+          canvas.setPointerCapture(e.pointerId);
+          return;
+        }
+      }
+    }
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    checkHoverTarget(e);
+
+    if (!isDraggingRef.current || !dragTargetRef.current) return;
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const mx = (e.clientX - rect.left) * scaleX;
+    const my = (e.clientY - rect.top) * scaleY;
+
+    // Convert to percentage
+    const rawXPct = (mx / canvas.width) * 100;
+    const rawYPct = (my / canvas.height) * 100;
+
+    // Snapping points (Left 10%, Center 50%, Right 90%)
+    const snapXPoints = [10, 50, 90];
+    const snapYPoints = [10, 50, 90];
+    const threshold = 2.5; // percent
+
+    let snapX = rawXPct;
+    let isSnappedX = false;
+    let snappedPointX = 0;
+
+    for (const p of snapXPoints) {
+      if (Math.abs(rawXPct - p) <= threshold) {
+        snapX = p;
+        isSnappedX = true;
+        snappedPointX = p;
+        break;
+      }
+    }
+
+    let snapY = rawYPct;
+    let isSnappedY = false;
+    let snappedPointY = 0;
+
+    for (const p of snapYPoints) {
+      if (Math.abs(rawYPct - p) <= threshold) {
+        snapY = p;
+        isSnappedY = true;
+        snappedPointY = p;
+        break;
+      }
+    }
+
+    const finalX = Math.max(0, Math.min(100, parseFloat(snapX.toFixed(1))));
+    const finalY = Math.max(0, Math.min(100, parseFloat(snapY.toFixed(1))));
+
+    activeGuidesRef.current = {
+      x: isSnappedX ? snappedPointX : undefined,
+      y: isSnappedY ? snappedPointY : undefined,
+    };
+
+    if (dragTargetRef.current.type === 'text') {
+      const text = textOverride !== undefined ? textOverride : frame.text;
+      if (text && onTextChange) {
+        onTextChange({ ...text, x: finalX, y: finalY });
+      }
+    } else if (dragTargetRef.current.type === 'sticker' && dragTargetRef.current.id) {
+      const stickers = stickersOverride !== undefined ? stickersOverride : frame.stickers;
+      if (stickers && onStickersChange) {
+        const nextStickers = stickers.map(s =>
+          s.id === dragTargetRef.current!.id ? { ...s, x: finalX, y: finalY } : s
+        );
+        onStickersChange(nextStickers);
+      }
+    }
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    isDraggingRef.current = false;
+    dragTargetRef.current = null;
+    activeGuidesRef.current = {};
+    setCursorStyle('default');
+    
+    const canvas = canvasRef.current;
+    if (canvas) {
+      try {
+        canvas.releasePointerCapture(e.pointerId);
+      } catch (err) {
+        // ignore
+      }
+    }
+  };
 
   // Load image
   useEffect(() => {
@@ -362,6 +566,32 @@ export function FramePreviewCanvas({
     // Draw stickers with animations
     drawStickers(ctx, stickers || [], progress, w, h, frame.duration, frame.transitionDuration);
 
+    // Draw guide lines
+    if (activeGuidesRef.current.x !== undefined) {
+      ctx.save();
+      ctx.strokeStyle = '#3B82F6';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([6, 4]);
+      const gx = (activeGuidesRef.current.x / 100) * w;
+      ctx.beginPath();
+      ctx.moveTo(gx, 0);
+      ctx.lineTo(gx, h);
+      ctx.stroke();
+      ctx.restore();
+    }
+    if (activeGuidesRef.current.y !== undefined) {
+      ctx.save();
+      ctx.strokeStyle = '#3B82F6';
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([6, 4]);
+      const gy = (activeGuidesRef.current.y / 100) * h;
+      ctx.beginPath();
+      ctx.moveTo(0, gy);
+      ctx.lineTo(w, gy);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     // Progress bar at bottom
     ctx.save();
     ctx.fillStyle = 'rgba(255,255,255,0.08)';
@@ -386,7 +616,12 @@ export function FramePreviewCanvas({
       ref={canvasRef}
       width={640}
       height={360}
-      className={`w-full rounded-lg border border-dark-border/50 shadow-inner ${className}`}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+      style={{ cursor: cursorStyle }}
+      className={`w-full rounded-lg border border-dark-border/50 shadow-inner select-none touch-none ${className}`}
     />
   );
 }

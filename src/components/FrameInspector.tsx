@@ -263,6 +263,7 @@ export function FrameInspector({
           <FramePreviewCanvas
             frame={frame}
             textOverride={frame.text}
+            onTextChange={(text) => onTextChange(frame.id, text)}
           />
         }
       >
@@ -283,6 +284,7 @@ export function FrameInspector({
           <FramePreviewCanvas
             frame={frame}
             stickersOverride={frame.stickers}
+            onStickersChange={(stickers) => onStickersChange(frame.id, stickers)}
           />
         }
       >
