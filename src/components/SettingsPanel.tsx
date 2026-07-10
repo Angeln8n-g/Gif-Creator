@@ -1,0 +1,237 @@
+import type { RenderSettings, Resolution, OptimizationLevel } from '../types';
+import { Settings, Download, Video, Image as ImageIcon, Loader2, Gauge, Zap } from 'lucide-react';
+
+interface SettingsPanelProps {
+  settings: RenderSettings;
+  setSettings: React.Dispatch<React.SetStateAction<RenderSettings>>;
+  onGenerate: () => void;
+  isRendering: boolean;
+  progress: number;
+  hasFrames: boolean;
+  isFfmpegLoaded: boolean;
+}
+
+const speedPresets = [
+  { value: 0.25, label: '0.25×' },
+  { value: 0.5, label: '0.5×' },
+  { value: 1, label: '1×' },
+  { value: 1.5, label: '1.5×' },
+  { value: 2, label: '2×' },
+  { value: 3, label: '3×' },
+  { value: 4, label: '4×' },
+];
+
+const optimizationLevels: { value: OptimizationLevel; label: string; desc: string }[] = [
+  { value: 'none', label: 'Sin opt.', desc: 'Máxima calidad' },
+  { value: 'low', label: 'Baja', desc: 'Poca compresión' },
+  { value: 'medium', label: 'Media', desc: 'Equilibrado' },
+  { value: 'high', label: 'Alta', desc: 'Mínimo peso' },
+];
+
+export function SettingsPanel({
+  settings,
+  setSettings,
+  onGenerate,
+  isRendering,
+  progress,
+  hasFrames,
+  isFfmpegLoaded
+}: SettingsPanelProps) {
+  
+  return (
+    <div className="bg-dark-card border border-dark-border rounded-2xl p-6 flex flex-col h-full shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
+      <div className="flex items-center space-x-2 mb-6">
+        <Settings className="text-cta" />
+        <h2 className="text-xl font-semibold text-white tracking-tight">Ajustes</h2>
+      </div>
+
+      <div className="space-y-6 flex-1 overflow-y-auto pr-1">
+        {/* Output Format */}
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-3">Formato de Exportación</label>
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              onClick={() => setSettings(s => ({ ...s, format: 'gif' }))}
+              className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl border transition-all duration-300 cursor-pointer ${
+                settings.format === 'gif'
+                  ? 'bg-cta/20 border-cta text-cta shadow-[0_0_15px_rgba(225,29,72,0.2)]'
+                  : 'bg-dark-bg border-dark-border text-gray-400 hover:border-gray-500 hover:text-gray-300'
+              }`}
+            >
+              <ImageIcon size={18} className="mb-1" />
+              <span className="text-xs font-medium">GIF</span>
+            </button>
+            <button
+              onClick={() => setSettings(s => ({ ...s, format: 'mp4' }))}
+              className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl border transition-all duration-300 cursor-pointer ${
+                settings.format === 'mp4'
+                  ? 'bg-cta/20 border-cta text-cta shadow-[0_0_15px_rgba(225,29,72,0.2)]'
+                  : 'bg-dark-bg border-dark-border text-gray-400 hover:border-gray-500 hover:text-gray-300'
+              }`}
+            >
+              <Video size={18} className="mb-1" />
+              <span className="text-xs font-medium">MP4</span>
+            </button>
+            <button
+              onClick={() => setSettings(s => ({ ...s, format: 'webp' }))}
+              className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl border transition-all duration-300 cursor-pointer ${
+                settings.format === 'webp'
+                  ? 'bg-cta/20 border-cta text-cta shadow-[0_0_15px_rgba(225,29,72,0.2)]'
+                  : 'bg-dark-bg border-dark-border text-gray-400 hover:border-gray-500 hover:text-gray-300'
+              }`}
+            >
+              <ImageIcon size={18} className="mb-1" />
+              <span className="text-xs font-medium">WebP</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Resolution */}
+        <div>
+          <label className="block text-sm font-medium text-gray-300 mb-2">Resolución</label>
+          <div className="relative">
+            <select
+              value={settings.resolution}
+              onChange={(e) => setSettings(s => ({ ...s, resolution: e.target.value as Resolution }))}
+              className="w-full bg-dark-bg border border-dark-border rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-1 focus:ring-cta focus:border-cta transition-all appearance-none cursor-pointer"
+            >
+              <option value="480p">480p (Rápido, Menos peso)</option>
+              <option value="720p">720p (Balanceado)</option>
+              <option value="1080p">1080p (Alta Calidad)</option>
+              <option value="custom">Personalizado</option>
+            </select>
+            <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none text-gray-400">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+            </div>
+          </div>
+        </div>
+
+        {/* Custom Resolution Sliders */}
+        {settings.resolution === 'custom' && (
+          <div className="space-y-5 animate-in fade-in slide-in-from-top-2 duration-300 bg-dark-bg p-4 rounded-xl border border-dark-border">
+            <div>
+              <div className="flex justify-between mb-2">
+                <label className="text-sm font-medium text-gray-300">Ancho</label>
+                <span className="text-xs font-mono text-cta bg-cta/10 px-2 py-0.5 rounded-md">{settings.customWidth || 1080}px</span>
+              </div>
+              <input
+                type="range"
+                min="240"
+                max="3840"
+                step="2"
+                value={settings.customWidth || 1080}
+                onChange={(e) => setSettings(s => ({ ...s, customWidth: parseInt(e.target.value) }))}
+                className="w-full h-1.5 bg-dark-border rounded-lg appearance-none cursor-pointer accent-cta hover:accent-cta-hover transition-all"
+              />
+            </div>
+            <div>
+              <div className="flex justify-between mb-2">
+                <label className="text-sm font-medium text-gray-300">Alto</label>
+                <span className="text-xs font-mono text-cta bg-cta/10 px-2 py-0.5 rounded-md">{settings.customHeight || 1080}px</span>
+              </div>
+              <input
+                type="range"
+                min="240"
+                max="2160"
+                step="2"
+                value={settings.customHeight || 1080}
+                onChange={(e) => setSettings(s => ({ ...s, customHeight: parseInt(e.target.value) }))}
+                className="w-full h-1.5 bg-dark-border rounded-lg appearance-none cursor-pointer accent-cta hover:accent-cta-hover transition-all"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Global Speed */}
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <Gauge size={16} className="text-gray-300" />
+            <label className="text-sm font-medium text-gray-300">Velocidad Global</label>
+            <span className="ml-auto text-xs font-mono text-cta bg-cta/10 px-2 py-0.5 rounded-md">{settings.globalSpeed}×</span>
+          </div>
+          <div className="flex gap-1.5 flex-wrap">
+            {speedPresets.map(preset => (
+              <button
+                key={preset.value}
+                onClick={() => setSettings(s => ({ ...s, globalSpeed: preset.value }))}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
+                  settings.globalSpeed === preset.value
+                    ? 'bg-cta/20 text-cta border border-cta/40 shadow-[0_0_10px_rgba(225,29,72,0.15)]'
+                    : 'bg-dark-bg border border-dark-border text-gray-400 hover:text-gray-300 hover:border-gray-500'
+                }`}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Optimization (GIF only) */}
+        {settings.format === 'gif' && (
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <Zap size={16} className="text-gray-300" />
+              <label className="text-sm font-medium text-gray-300">Optimización</label>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {optimizationLevels.map(level => (
+                <button
+                  key={level.value}
+                  onClick={() => setSettings(s => ({ ...s, optimization: level.value }))}
+                  className={`flex flex-col items-center py-2.5 px-3 rounded-xl border text-center transition-all cursor-pointer ${
+                    settings.optimization === level.value
+                      ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.1)]'
+                      : 'bg-dark-bg border-dark-border text-gray-400 hover:text-gray-300 hover:border-gray-500'
+                  }`}
+                >
+                  <span className="text-xs font-medium">{level.label}</span>
+                  <span className="text-[10px] opacity-60 mt-0.5">{level.desc}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="mt-8 pt-6 border-t border-dark-border">
+        {isRendering ? (
+          <div className="space-y-3">
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-400">Procesando medios...</span>
+              <span className="text-cta font-mono font-medium">{progress}%</span>
+            </div>
+            <div className="w-full bg-dark-bg rounded-full h-2.5 overflow-hidden border border-dark-border/50">
+              <div 
+                className="bg-cta h-full rounded-full transition-all duration-300 ease-out shadow-[0_0_10px_rgba(225,29,72,0.5)]"
+                style={{ width: `${progress}%` }}
+              ></div>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={onGenerate}
+            disabled={!hasFrames || !isFfmpegLoaded}
+            className={`w-full py-4 rounded-xl font-semibold flex items-center justify-center space-x-2 transition-all duration-300 cursor-pointer
+              ${hasFrames && isFfmpegLoaded
+                ? 'bg-cta hover:bg-cta-hover text-white shadow-[0_0_20px_rgba(225,29,72,0.3)] hover:shadow-[0_0_25px_rgba(225,29,72,0.5)] hover:-translate-y-0.5 border border-white/10' 
+                : 'bg-dark-bg border border-dark-border text-gray-500 cursor-not-allowed'
+              }
+            `}
+          >
+            {!isFfmpegLoaded ? (
+              <>
+                <Loader2 size={20} className="animate-spin" />
+                <span>Cargando motor FFmpeg...</span>
+              </>
+            ) : (
+              <>
+                <Download size={20} />
+                <span>Exportar {settings.format.toUpperCase()}</span>
+              </>
+            )}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}

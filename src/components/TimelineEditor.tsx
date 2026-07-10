@@ -1,0 +1,526 @@
+import { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import type { DragEndEvent } from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  horizontalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import type {
+  FrameImage,
+  AnimationType,
+  TransitionType,
+  TextOverlay,
+  StickerOverlay,
+  CropSettings,
+  EffectClipboard,
+  EffectMask,
+  EffectCategory,
+} from '../types';
+import { TimelineItem } from './TimelineItem';
+import { FrameInspector } from './FrameInspector';
+import { CopyEffectsMenu } from './CopyEffectsMenu';
+import { EffectsStatusBanner } from './EffectsStatusBanner';
+import { PasteNotification } from './PasteNotification';
+import { applyEffectMask } from '../utils/effectHelpers';
+import { Layers, Clock } from 'lucide-react';
+import type { PreviewPlayerRef } from './PreviewPlayer';
+
+interface TimelineEditorProps {
+  frames: FrameImage[];
+  setFrames: React.Dispatch<React.SetStateAction<FrameImage[]>>;
+  currentTime?: number;
+  playerRef?: React.RefObject<PreviewPlayerRef | null>;
+}
+
+export function TimelineEditor({ frames, setFrames, currentTime, playerRef }: TimelineEditorProps) {
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [isScrubbing, setIsScrubbing] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // ─── Effects Copy-Paste State ───────────────────────────────────────────────
+  const [effectClipboard, setEffectClipboard] = useState<EffectClipboard | null>(null);
+  const [effectMask, setEffectMask] = useState<EffectMask>(new Set());
+  const [targetFrameIds, setTargetFrameIds] = useState<Set<string>>(new Set());
+  const [, setUndoStack] = useState<FrameImage[][]>([]);
+  const [pasteNotificationCount, setPasteNotificationCount] = useState<number | null>(null);
+  const [showCopyMenu, setShowCopyMenu] = useState(false);
+  // ────────────────────────────────────────────────────────────────────────────
+
+  // Auto-select first frame if none is selected
+  useEffect(() => {
+    if (frames.length > 0 && !selectedId) {
+      setSelectedId(frames[0].id);
+    } else if (frames.length === 0) {
+      setSelectedId(null);
+    } else if (selectedId && !frames.find(f => f.id === selectedId)) {
+      setSelectedId(frames[0].id);
+    }
+  }, [frames, selectedId]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      setFrames((items) => {
+        const oldIndex = items.findIndex((i) => i.id === active.id);
+        const newIndex = items.findIndex((i) => i.id === over.id);
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
+  };
+
+  const handleRemove = (id: string) => {
+    setFrames((items) => items.filter((i) => i.id !== id));
+  };
+
+  const handleDurationChange = (id: string, duration: number) => {
+    setFrames((items) =>
+      items.map((i) => (i.id === id ? { ...i, duration } : i))
+    );
+  };
+
+  const handleAnimationChange = (id: string, animation: AnimationType) => {
+    setFrames((items) =>
+      items.map((i) => (i.id === id ? { ...i, animation } : i))
+    );
+  };
+
+  const handleTransitionChange = (id: string, transition: TransitionType) => {
+    setFrames((items) =>
+      items.map((i) => (i.id === id ? { ...i, transition } : i))
+    );
+  };
+
+  const handleTransitionDurationChange = (id: string, duration: number) => {
+    setFrames((items) =>
+      items.map((i) => (i.id === id ? { ...i, transitionDuration: duration } : i))
+    );
+  };
+
+  const handleTextChange = (id: string, text: TextOverlay | undefined) => {
+    setFrames((items) =>
+      items.map((i) => (i.id === id ? { ...i, text } : i))
+    );
+  };
+
+  const handleStickersChange = (id: string, stickers: StickerOverlay[]) => {
+    setFrames((items) =>
+      items.map((i) => (i.id === id ? { ...i, stickers } : i))
+    );
+  };
+
+  const handleCropChange = (id: string, crop: CropSettings | undefined) => {
+    setFrames((items) =>
+      items.map((i) => (i.id === id ? { ...i, crop } : i))
+    );
+  };
+
+  // ─── Effects Copy-Paste Callbacks ──────────────────────────────────────────
+
+  /** Reset all clipboard state */
+  const clearClipboard = useCallback(() => {
+    setEffectClipboard(null);
+    setEffectMask(new Set());
+    setTargetFrameIds(new Set());
+    setUndoStack([]);
+    setShowCopyMenu(false);
+  }, []);
+
+  /** Open the copy menu for a given frame */
+  const copyEffects = useCallback((frameId: string) => {
+    const frame = frames.find((f) => f.id === frameId);
+    if (!frame) return;
+
+    const snapshot: EffectClipboard = {
+      sourceFrameId: frameId,
+      sourceEffects: {
+        animation: frame.animation,
+        transition: frame.transition,
+        transitionDuration: frame.transitionDuration,
+        text: frame.text,
+        stickers: [...frame.stickers],
+        crop: frame.crop ? { ...frame.crop } : undefined,
+      },
+    };
+
+    setEffectClipboard(snapshot);
+    // Preserve existing mask when replacing clipboard; reset targets
+    setTargetFrameIds(new Set());
+    setShowCopyMenu(true);
+  }, [frames]);
+
+  /** Toggle a single category in the mask */
+  const toggleCategory = useCallback((cat: EffectCategory) => {
+    setEffectMask((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
+  }, []);
+
+  const ALL_CATEGORIES: EffectCategory[] = ['animation', 'transition', 'text', 'stickers', 'crop'];
+
+  const selectAll = useCallback(() => {
+    setEffectMask(new Set(ALL_CATEGORIES));
+  }, []);
+
+  const deselectAll = useCallback(() => {
+    setEffectMask(new Set());
+  }, []);
+
+  /** Called when user confirms the category selection in CopyEffectsMenu */
+  const confirmCopyMenu = useCallback(() => {
+    setShowCopyMenu(false);
+  }, []);
+
+  /** Toggle a frame as a paste target (source frame is never added) */
+  const toggleTargetFrame = useCallback((id: string) => {
+    if (!effectClipboard || id === effectClipboard.sourceFrameId) return;
+    setTargetFrameIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, [effectClipboard]);
+
+  /** Mark all frames except source as targets */
+  const selectAllTargets = useCallback(() => {
+    if (!effectClipboard) return;
+    const allExceptSource = new Set(
+      frames.filter((f) => f.id !== effectClipboard.sourceFrameId).map((f) => f.id)
+    );
+    setTargetFrameIds(allExceptSource);
+  }, [effectClipboard, frames]);
+
+  /** Paste to a single frame by id */
+  const pasteToFrame = useCallback((id: string) => {
+    if (!effectClipboard || id === effectClipboard.sourceFrameId) return;
+    setUndoStack((prev) => [...prev, frames]);
+    setFrames((items) =>
+      items.map((f) =>
+        f.id === id ? applyEffectMask(f, effectClipboard.sourceEffects, effectMask) : f
+      )
+    );
+    setPasteNotificationCount(1);
+  }, [effectClipboard, effectMask, frames, setFrames]);
+
+  /** Paste to all frames in targetFrameIds (excluding source) */
+  const pasteToSelected = useCallback(() => {
+    if (!effectClipboard) return;
+    const eligible = [...targetFrameIds].filter((id) => id !== effectClipboard.sourceFrameId);
+    if (eligible.length === 0) return;
+    setUndoStack((prev) => [...prev, frames]);
+    setFrames((items) =>
+      items.map((f) =>
+        eligible.includes(f.id)
+          ? applyEffectMask(f, effectClipboard.sourceEffects, effectMask)
+          : f
+      )
+    );
+    setPasteNotificationCount(eligible.length);
+  }, [effectClipboard, effectMask, targetFrameIds, frames, setFrames]);
+
+  /** Paste to every frame except source */
+  const pasteToAll = useCallback(() => {
+    if (!effectClipboard) return;
+    setUndoStack((prev) => [...prev, frames]);
+    const count = frames.filter((f) => f.id !== effectClipboard.sourceFrameId).length;
+    setFrames((items) =>
+      items.map((f) =>
+        f.id !== effectClipboard.sourceFrameId
+          ? applyEffectMask(f, effectClipboard.sourceEffects, effectMask)
+          : f
+      )
+    );
+    setPasteNotificationCount(count);
+  }, [effectClipboard, effectMask, frames, setFrames]);
+
+  // ─── Undo (Ctrl+Z) ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key === 'z') {
+        setUndoStack((prev) => {
+          if (prev.length === 0) return prev;
+          const snapshot = prev[prev.length - 1];
+          setFrames(snapshot);
+          return prev.slice(0, -1);
+        });
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [setFrames]);
+
+  // ─── Guard: clear clipboard if source frame is deleted ──────────────────────
+  useEffect(() => {
+    if (!effectClipboard) return;
+    const sourceStillExists = frames.some((f) => f.id === effectClipboard.sourceFrameId);
+    if (!sourceStillExists) {
+      clearClipboard();
+    }
+  }, [frames, effectClipboard, clearClipboard]);
+
+  // ────────────────────────────────────────────────────────────────────────────
+
+  if (frames.length === 0) return null;
+
+  let playheadOffset = 0;
+  let accumulatedTime = 0;
+
+  if (currentTime !== undefined) {
+    for (let i = 0; i < frames.length; i++) {
+      const f = frames[i];
+      const width = Math.max(60, Math.min(500, f.duration * 100));
+      const gap = 8; // space-x-2 is 8px
+      
+      if (currentTime >= accumulatedTime + f.duration) {
+        playheadOffset += width + gap;
+        accumulatedTime += f.duration;
+      } else {
+        const progress = (currentTime - accumulatedTime) / f.duration;
+        playheadOffset += width * progress;
+        break;
+      }
+    }
+  }
+
+  const selectedFrame = frames.find(f => f.id === selectedId);
+
+  const calculateSeekTime = (clientX: number) => {
+    if (!containerRef.current) return 0;
+    const rect = containerRef.current.getBoundingClientRect();
+    const scrollLeft = containerRef.current.scrollLeft;
+    const clickX = clientX - rect.left + scrollLeft;
+    
+    let accTime = 0;
+    let currentX = 0;
+    const gap = 8;
+    
+    for (let i = 0; i < frames.length; i++) {
+      const f = frames[i];
+      const width = Math.max(60, Math.min(500, f.duration * 100));
+      
+      if (clickX >= currentX && clickX <= currentX + width) {
+        const progress = (clickX - currentX) / width;
+        return accTime + f.duration * progress;
+      }
+      
+      currentX += width + gap;
+      accTime += f.duration;
+      
+      if (clickX > currentX - gap && clickX < currentX) {
+        return accTime;
+      }
+    }
+    
+    if (clickX >= currentX) {
+      return accTime;
+    }
+    return 0;
+  };
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!playerRef?.current) return;
+    
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'BUTTON' || target.tagName === 'INPUT' || target.closest('button')) {
+      return;
+    }
+
+    const time = calculateSeekTime(e.clientX);
+    
+    // If clicked exactly on a frame, just seek once so DndKit can still drag it
+    const isTimelineItem = target.closest('.timeline-item-container');
+    if (isTimelineItem) {
+      playerRef.current.seek(time);
+      return;
+    }
+
+    setIsScrubbing(true);
+    playerRef.current.seek(time);
+  };
+
+  useEffect(() => {
+    if (!isScrubbing) return;
+
+    const handlePointerMove = (e: PointerEvent) => {
+      if (!playerRef?.current) return;
+      e.preventDefault();
+      const time = calculateSeekTime(e.clientX);
+      playerRef.current.seek(time);
+    };
+
+    const handlePointerUp = () => {
+      setIsScrubbing(false);
+    };
+
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+    window.addEventListener('pointercancel', handlePointerUp);
+
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+      window.removeEventListener('pointercancel', handlePointerUp);
+    };
+  }, [isScrubbing, frames, playerRef]);
+
+  return (
+    <div className="flex flex-col space-y-6">
+      
+      {/* Timeline Track */}
+      <div className="bg-dark-card border border-dark-border rounded-xl p-4 shadow-inner overflow-hidden">
+        <div className="flex items-center space-x-2 mb-4 text-gray-400">
+          <Layers size={18} />
+          <h3 className="text-sm font-medium">Timeline Principal</h3>
+          
+          <div className="flex items-center space-x-2 ml-4 bg-dark-bg/50 px-3 py-1.5 rounded-lg border border-dark-border/50">
+            <Clock size={14} className="text-gray-400" />
+            <span className="text-xs text-gray-400">Duración global:</span>
+            <input
+              type="number"
+              min="0.1"
+              step="0.1"
+              value={frames.length > 0 && frames.every(f => f.duration === frames[0].duration) ? frames[0].duration : ''}
+              onChange={(e) => {
+                const val = parseFloat(e.target.value);
+                if (val > 0) {
+                  setFrames(items => items.map(i => ({ ...i, duration: val })));
+                }
+              }}
+              className="w-14 bg-dark-card text-white text-xs text-center border border-dark-border rounded-md px-1 py-0.5 focus:outline-none focus:border-cta"
+              placeholder="--"
+            />
+            <span className="text-xs text-gray-400">s</span>
+          </div>
+
+          <span className="text-xs px-2 py-0.5 bg-dark-bg rounded-md ml-auto">
+            Total: {frames.reduce((acc, f) => acc + f.duration, 0).toFixed(1)}s
+          </span>
+        </div>
+
+        <div 
+          ref={containerRef}
+          className={`overflow-x-auto custom-scrollbar pb-4 relative cursor-pointer ${isScrubbing ? 'select-none touch-none' : ''}`}
+          onPointerDown={handlePointerDown}
+        >
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext items={frames.map(f => f.id)} strategy={horizontalListSortingStrategy}>
+              <div className="flex space-x-2 min-w-max items-center relative">
+                {frames.map((frame) => (
+                  <TimelineItem
+                    key={frame.id}
+                    frame={frame}
+                    isSelected={frame.id === selectedId}
+                    onSelect={setSelectedId}
+                    onDurationChange={handleDurationChange}
+                    isSource={effectClipboard?.sourceFrameId === frame.id}
+                    isTarget={targetFrameIds.has(frame.id)}
+                    canPaste={effectClipboard !== null && effectClipboard.sourceFrameId !== frame.id}
+                    effectMask={effectMask}
+                    onCopyEffects={copyEffects}
+                    onPasteEffects={pasteToFrame}
+                    onToggleTarget={toggleTargetFrame}
+                  />
+                ))}
+                
+                {currentTime !== undefined && (
+                  <div 
+                    className="absolute top-0 bottom-0 w-0.5 bg-cta z-50 pointer-events-none shadow-[0_0_8px_rgba(255,42,95,0.8)]"
+                    style={{ left: `${playheadOffset}px` }}
+                  >
+                    <div className="absolute -top-1 -left-1 w-2.5 h-2.5 bg-cta rounded-sm shadow-md" />
+                  </div>
+                )}
+              </div>
+            </SortableContext>
+          </DndContext>
+        </div>
+      </div>
+
+      {/* Copy Effects Menu */}
+      {showCopyMenu && effectClipboard && (
+        <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+          <CopyEffectsMenu
+            sourceFrame={frames.find((f) => f.id === effectClipboard.sourceFrameId)!}
+            mask={effectMask}
+            onToggleCategory={toggleCategory}
+            onSelectAll={selectAll}
+            onDeselectAll={deselectAll}
+            onConfirm={confirmCopyMenu}
+            onCancel={clearClipboard}
+          />
+        </div>
+      )}
+
+      {/* Effects Status Banner */}
+      {effectClipboard !== null && !showCopyMenu && (
+        <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+          <EffectsStatusBanner
+            sourceIndex={(frames.findIndex((f) => f.id === effectClipboard.sourceFrameId) ?? 0) + 1}
+            mask={effectMask}
+            targetCount={targetFrameIds.size}
+            onPasteToSelected={pasteToSelected}
+            onPasteToAll={pasteToAll}
+            onSelectAllTargets={selectAllTargets}
+            onCancel={clearClipboard}
+          />
+        </div>
+      )}
+
+      {/* Paste Notification */}
+      {pasteNotificationCount !== null && (
+        <div className="fixed bottom-6 right-6 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <PasteNotification
+            count={pasteNotificationCount}
+            onDismiss={() => setPasteNotificationCount(null)}
+          />
+        </div>
+      )}
+
+      {/* Inspector (Properties Panel) */}
+      {selectedFrame && (
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <FrameInspector
+            frame={selectedFrame}
+            onRemove={handleRemove}
+            onDurationChange={handleDurationChange}
+            onAnimationChange={handleAnimationChange}
+            onTransitionChange={handleTransitionChange}
+            onTransitionDurationChange={handleTransitionDurationChange}
+            onTextChange={handleTextChange}
+            onStickersChange={handleStickersChange}
+            onCropChange={handleCropChange}
+          />
+        </div>
+      )}
+
+    </div>
+  );
+}

@@ -1,0 +1,30 @@
+# Excluir dependencias locales y compilados
+node_modules
+dist
+build
+
+# Excluir logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.eslintcache
+
+# Excluir control de versiones y configuraciones de editores
+.git
+.gitignore
+.vscode
+.idea
+.agent
+.kiro
+
+# Excluir configuración de docker misma (opcional)
+Dockerfile
+.dockerignore
+nginx.conf
+
+# Excluir archivos de variables de entorno locales (seguridad)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
