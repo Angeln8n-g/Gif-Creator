@@ -102,6 +102,14 @@ export interface FrameImage {
   text?: TextOverlay;
   stickers: StickerOverlay[];
   crop?: CropSettings;
+  sfx?: {
+    name: string;
+    url: string;
+    file: File;
+    volume: number;
+    start: number;
+    end: number;
+  };
 }
 
 // ─── Render Settings ───

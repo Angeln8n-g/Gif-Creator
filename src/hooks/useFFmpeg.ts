@@ -3,9 +3,47 @@ import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { toBlobURL, fetchFile } from '@ffmpeg/util';
 import type { FrameImage, RenderSettings, CropSettings, TextOverlay, StickerOverlay } from '../types';
 
+// Helper function to fetch resources with progress tracking
+async function fetchWithProgress(
+  url: string,
+  mimeType: string,
+  onProgress: (percent: number) => void
+): Promise<string> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Failed to download ${url}: HTTP status ${response.status}`);
+
+  const contentLength = response.headers.get('content-length');
+  const total = contentLength ? parseInt(contentLength, 10) : 0;
+
+  if (!response.body || total === 0) {
+    onProgress(100);
+    const blob = await response.blob();
+    return URL.createObjectURL(blob);
+  }
+
+  const reader = response.body.getReader();
+
+  let loaded = 0;
+  const chunks: Uint8Array[] = [];
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (value) {
+      chunks.push(value);
+      loaded += value.length;
+      onProgress(Math.round((loaded / total) * 100));
+    }
+  }
+
+  const blob = new Blob(chunks as BlobPart[], { type: mimeType });
+  return URL.createObjectURL(blob);
+}
+
 export function useFFmpeg() {
   const [loaded, setLoaded] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadProgress, setLoadProgress] = useState(0);
   const [progress, setProgress] = useState(0);
   const [rendering, setRendering] = useState(false);
   const ffmpegRef = useRef(new FFmpeg());
@@ -13,6 +51,7 @@ export function useFFmpeg() {
   const load = useCallback(async () => {
     if (loaded || loading) return;
     setLoading(true);
+    setLoadProgress(0);
     const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.10/dist/esm';
     const ffmpeg = ffmpegRef.current;
     
@@ -21,9 +60,19 @@ export function useFFmpeg() {
     });
 
     try {
+      // ffmpeg-core.js is small (31KB), load it directly
+      const coreURL = await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript');
+      
+      // ffmpeg-core.wasm is large (24MB), download with progress
+      const wasmURL = await fetchWithProgress(
+        `${baseURL}/ffmpeg-core.wasm`,
+        'application/wasm',
+        (pct) => setLoadProgress(pct)
+      );
+
       await ffmpeg.load({
-        coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
-        wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+        coreURL,
+        wasmURL,
       });
       
       setLoaded(true);
@@ -392,7 +441,12 @@ export function useFFmpeg() {
     });
   };
 
-  const renderMedia = async (frames: FrameImage[], settings: RenderSettings): Promise<string | null> => {
+  const renderMedia = async (
+    frames: FrameImage[],
+    settings: RenderSettings,
+    audioTrack?: File | null,
+    audioVolume?: number
+  ): Promise<string | null> => {
     if (!loaded || frames.length === 0) return null;
     setRendering(true);
     setProgress(0);
@@ -501,12 +555,107 @@ export function useFFmpeg() {
         ]);
       } else {
         // MP4
-        await ffmpeg.exec([
-          '-f', 'concat', '-safe', '0', '-i', 'concat_list.txt',
+        const totalDuration = frames.reduce((acc, f) => acc + (f.duration / settings.globalSpeed), 0);
+        
+        // Write background audio file if present
+        let audioFilename = '';
+        if (audioTrack) {
+          const audioExt = audioTrack.name.split('.').pop() || 'mp3';
+          audioFilename = `input_audio.${audioExt}`;
+          const audioData = await fetchFile(audioTrack);
+          await ffmpeg.writeFile(audioFilename, audioData);
+        }
+
+        // Write SFX audio files if present and calculate offsets
+        let currentOffset = 0;
+        const sfxInputs: { filename: string; delayMs: number; volume: number; start: number; duration: number }[] = [];
+        
+        for (let i = 0; i < frames.length; i++) {
+          const frame = frames[i];
+          const effectiveDuration = frame.duration / settings.globalSpeed;
+          
+          if (frame.sfx) {
+            const sfxExt = frame.sfx.name.split('.').pop() || 'mp3';
+            const sfxFilename = `sfx_${frame.id}.${sfxExt}`;
+            const sfxData = await fetchFile(frame.sfx.file);
+            await ffmpeg.writeFile(sfxFilename, sfxData);
+            
+            sfxInputs.push({
+              filename: sfxFilename,
+              delayMs: Math.round(currentOffset * 1000),
+              volume: frame.sfx.volume,
+              start: frame.sfx.start || 0,
+              duration: (frame.sfx.end - frame.sfx.start) || 1.0
+            });
+          }
+          currentOffset += effectiveDuration;
+        }
+
+        const execArgs = [
+          '-f', 'concat', '-safe', '0', '-i', 'concat_list.txt'
+        ];
+
+        let inputIndex = 1;
+        let bgMusicIndex = -1;
+        
+        if (audioTrack && audioFilename) {
+          execArgs.push('-stream_loop', '-1', '-i', audioFilename);
+          bgMusicIndex = inputIndex;
+          inputIndex++;
+        }
+
+        const sfxStartIndex = inputIndex;
+        for (const sfx of sfxInputs) {
+          execArgs.push('-ss', sfx.start.toFixed(3), '-t', sfx.duration.toFixed(3), '-i', sfx.filename);
+          inputIndex++;
+        }
+
+        execArgs.push(
           '-vf', scaleFilter,
-          '-c:v', 'libx264', '-pix_fmt', 'yuv420p',
-          '-y', outputName
-        ]);
+          '-c:v', 'libx264', '-pix_fmt', 'yuv420p'
+        );
+
+        const hasAudio = bgMusicIndex !== -1 || sfxInputs.length > 0;
+        
+        if (hasAudio) {
+          let filterComplex = '';
+          const amixInputs: string[] = [];
+
+          if (bgMusicIndex !== -1) {
+            filterComplex += `[${bgMusicIndex}:a]volume=${audioVolume || 1.0}[bg_music]; `;
+            amixInputs.push('[bg_music]');
+          }
+
+          sfxInputs.forEach((sfx, idx) => {
+            const sfxInputIdx = sfxStartIndex + idx;
+            const label = `sfx_${idx}`;
+            filterComplex += `[${sfxInputIdx}:a]adelay=${sfx.delayMs}|${sfx.delayMs},volume=${sfx.volume}[${label}]; `;
+            amixInputs.push(`[${label}]`);
+          });
+
+          if (amixInputs.length === 1) {
+            if (bgMusicIndex !== -1) {
+              filterComplex = `[${bgMusicIndex}:a]volume=${audioVolume || 1.0}[aout]`;
+            } else {
+              const sfx = sfxInputs[0];
+              filterComplex = `[${sfxStartIndex}:a]adelay=${sfx.delayMs}|${sfx.delayMs},volume=${sfx.volume}[aout]`;
+            }
+          } else {
+            filterComplex += `${amixInputs.join('')}amix=inputs=${amixInputs.length}[aout]`;
+          }
+
+          execArgs.push(
+            '-filter_complex', filterComplex,
+            '-map', '0:v',
+            '-map', '[aout]',
+            '-c:a', 'aac',
+            '-t', totalDuration.toFixed(3)
+          );
+        }
+
+        execArgs.push('-y', outputName);
+
+        await ffmpeg.exec(execArgs);
       }
 
       setProgress(90);
@@ -530,6 +679,7 @@ export function useFFmpeg() {
   return {
     loaded,
     loading,
+    loadProgress,
     progress,
     rendering,
     renderMedia

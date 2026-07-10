@@ -5,13 +5,15 @@ import type { FrameImage } from '../types';
 export function useBackgroundRemover() {
   const [isRemoving, setIsRemoving] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
 
   const removeBackgroundFromFrames = async (
     frames: FrameImage[],
-    onUpdateFrames: (newFrames: FrameImage[]) => void
+    onUpdateFrames: (newFrames: FrameImage[], skipHistory?: boolean) => void
   ) => {
     setIsRemoving(true);
     setProgress(0);
+    setDownloadProgress(null);
     
     try {
       const newFrames = [...frames];
@@ -22,7 +24,16 @@ export function useBackgroundRemover() {
         const blob = await response.blob();
         
         // This process might take a few seconds per image depending on hardware
-        const imageBlob = await removeBackground(blob);
+        // We pass the progress callback to capture the model download phase
+        const imageBlob = await removeBackground(blob, {
+          progress: (key, current, total) => {
+            if (key.includes('fetch') && total > 0) {
+              setDownloadProgress(Math.round((current / total) * 100));
+            } else {
+              setDownloadProgress(null);
+            }
+          }
+        });
         const url = URL.createObjectURL(imageBlob);
         
         newFrames[i] = { ...frame, previewUrl: url };
@@ -30,7 +41,9 @@ export function useBackgroundRemover() {
         setProgress(Math.round(((i + 1) / frames.length) * 100));
         
         // Update state progressively so UI reflects the progress
-        onUpdateFrames([...newFrames]);
+        // Skip history updates until the final frame is processed
+        const isFinalFrame = i === frames.length - 1;
+        onUpdateFrames([...newFrames], !isFinalFrame);
       }
     } catch (err) {
       console.error("Error removing background", err);
@@ -38,8 +51,9 @@ export function useBackgroundRemover() {
     } finally {
       setIsRemoving(false);
       setProgress(0);
+      setDownloadProgress(null);
     }
   };
 
-  return { isRemoving, progress, removeBackgroundFromFrames };
+  return { isRemoving, progress, downloadProgress, removeBackgroundFromFrames };
 }

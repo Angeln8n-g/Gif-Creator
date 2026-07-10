@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import type { FrameImage, RenderSettings } from './types';
 import { CollapsibleSettingsPanel } from './components/CollapsibleSettingsPanel';
 import { CanvasWorkspace } from './components/CanvasWorkspace';
@@ -7,11 +7,19 @@ import { useFFmpeg } from './hooks/useFFmpeg';
 import { useGifExtractor } from './hooks/useGifExtractor';
 import { useBackgroundRemover } from './hooks/useBackgroundRemover';
 import { useIsPanelOpen } from './hooks/useIsPanelOpen';
-import { Film } from 'lucide-react';
+import { useHistoryState } from './hooks/useHistoryState';
+import { Film, Undo2, Redo2 } from 'lucide-react';
 
 function App() {
   const playerRef = useRef<PreviewPlayerRef>(null);
-  const [frames, setFrames] = useState<FrameImage[]>([]);
+  const { 
+    state: frames, 
+    setState: setFrames, 
+    undo, 
+    redo, 
+    canUndo, 
+    canRedo 
+  } = useHistoryState<FrameImage[]>([]);
   const [selectedVideo, setSelectedVideo] = useState<File | null>(null);
   const [settings, setSettings] = useState<RenderSettings>({
     format: 'gif',
@@ -23,12 +31,45 @@ function App() {
   const [isExtractingGif, setIsExtractingGif] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [audioTrack, setAudioTrack] = useState<File | null>(null);
+  const [audioVolume, setAudioVolume] = useState<number>(1.0);
 
   const [isPanelOpen, togglePanel] = useIsPanelOpen();
 
-  const { loaded, rendering, progress, renderMedia } = useFFmpeg();
+  const { loaded, loadProgress, rendering, progress, renderMedia } = useFFmpeg();
   const { extractGifFrames } = useGifExtractor();
-  const { isRemoving, progress: bgProgress, removeBackgroundFromFrames } = useBackgroundRemover();
+  const { isRemoving, progress: bgProgress, downloadProgress: bgDownloadProgress, removeBackgroundFromFrames } = useBackgroundRemover();
+
+  // Global keyboard shortcuts for Undo/Redo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      const isTyping = activeEl && (
+        activeEl.tagName === 'INPUT' || 
+        activeEl.tagName === 'TEXTAREA' || 
+        (activeEl instanceof HTMLElement && activeEl.isContentEditable)
+      );
+      
+      if (isTyping) return;
+
+      if (e.ctrlKey) {
+        if (e.key.toLowerCase() === 'z') {
+          e.preventDefault();
+          if (e.shiftKey) {
+            redo();
+          } else {
+            undo();
+          }
+        } else if (e.key.toLowerCase() === 'y') {
+          e.preventDefault();
+          redo();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo]);
 
   const handleUpload = (newFrames: FrameImage[]) => {
     setFrames(prev => [...prev, ...newFrames]);
@@ -36,7 +77,7 @@ function App() {
 
   const handleGenerate = async () => {
     setResultUrl(null);
-    const url = await renderMedia(frames, settings);
+    const url = await renderMedia(frames, settings, audioTrack, audioVolume);
     if (url) {
       setResultUrl(url);
     }
@@ -77,6 +118,27 @@ function App() {
             <p className="text-sm text-gray-400 font-medium">Creador de GIF y Video Profesional</p>
           </div>
         </div>
+
+        {/* Undo/Redo Controls */}
+        <div className="flex items-center space-x-1.5 bg-dark-card/50 border border-dark-border/50 p-1.5 rounded-xl backdrop-blur-md">
+          <button
+            onClick={undo}
+            disabled={!canUndo}
+            title="Deshacer (Ctrl+Z)"
+            className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-dark-bg disabled:opacity-30 disabled:hover:text-gray-400 disabled:hover:bg-transparent transition-all duration-200"
+          >
+            <Undo2 size={18} />
+          </button>
+          <div className="w-[1px] h-4 bg-dark-border/50" />
+          <button
+            onClick={redo}
+            disabled={!canRedo}
+            title="Rehacer (Ctrl+Y)"
+            className="p-2 rounded-lg text-gray-400 hover:text-white hover:bg-dark-bg disabled:opacity-30 disabled:hover:text-gray-400 disabled:hover:bg-transparent transition-all duration-200"
+          >
+            <Redo2 size={18} />
+          </button>
+        </div>
       </header>
 
       {/* Main Content */}
@@ -92,9 +154,14 @@ function App() {
           progress={progress}
           hasFrames={frames.length > 0}
           isFfmpegLoaded={loaded}
+          ffmpegLoadProgress={loadProgress}
           onUpload={handleUpload}
           onVideoSelect={setSelectedVideo}
           onGifSelect={handleGifSelect}
+          audioTrack={audioTrack}
+          setAudioTrack={setAudioTrack}
+          audioVolume={audioVolume}
+          setAudioVolume={setAudioVolume}
         />
 
         {/* Right: Canvas Workspace */}
@@ -107,6 +174,7 @@ function App() {
           selectedVideo={selectedVideo}
           isRemoving={isRemoving}
           bgProgress={bgProgress}
+          bgDownloadProgress={bgDownloadProgress}
           playerRef={playerRef}
           isPlaying={isPlaying}
           currentTime={currentTime}
@@ -118,6 +186,8 @@ function App() {
           onRemoveBackground={() => removeBackgroundFromFrames(frames, setFrames)}
           onClearFrames={() => setFrames([])}
           onVideoDismiss={() => setSelectedVideo(null)}
+          audioTrack={audioTrack}
+          audioVolume={audioVolume}
         />
       </div>
     </div>

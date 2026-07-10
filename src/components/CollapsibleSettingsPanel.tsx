@@ -11,11 +11,16 @@ interface CollapsibleSettingsPanelProps {
   progress: number;
   hasFrames: boolean;
   isFfmpegLoaded: boolean;
+  ffmpegLoadProgress?: number;
   isOpen: boolean;
   onToggle: () => void;
   onUpload: (frames: FrameImage[]) => void;
   onVideoSelect: (file: File) => void;
   onGifSelect: (file: File) => void;
+  audioTrack: File | null;
+  setAudioTrack: React.Dispatch<React.SetStateAction<File | null>>;
+  audioVolume: number;
+  setAudioVolume: React.Dispatch<React.SetStateAction<number>>;
 }
 
 /**
@@ -37,11 +42,16 @@ export function CollapsibleSettingsPanel({
   progress,
   hasFrames,
   isFfmpegLoaded,
+  ffmpegLoadProgress,
   isOpen,
   onToggle,
   onUpload,
   onVideoSelect,
   onGifSelect,
+  audioTrack,
+  setAudioTrack,
+  audioVolume,
+  setAudioVolume,
 }: CollapsibleSettingsPanelProps) {
   // Detect prefers-reduced-motion so we can disable CSS transitions.
   const [reducedMotion, setReducedMotion] = useState<boolean>(() => {
@@ -70,7 +80,7 @@ export function CollapsibleSettingsPanel({
       ].join(' ')}
     >
       {/* Full settings panel — visible only when open */}
-      {isOpen && (
+       {isOpen && (
         <div className="flex-1 min-w-0">
           <SettingsPanel
             settings={settings}
@@ -80,9 +90,14 @@ export function CollapsibleSettingsPanel({
             progress={progress}
             hasFrames={hasFrames}
             isFfmpegLoaded={isFfmpegLoaded}
+            ffmpegLoadProgress={ffmpegLoadProgress}
             onUpload={onUpload}
             onVideoSelect={onVideoSelect}
             onGifSelect={onGifSelect}
+            audioTrack={audioTrack}
+            setAudioTrack={setAudioTrack}
+            audioVolume={audioVolume}
+            setAudioVolume={setAudioVolume}
           />
         </div>
       )}

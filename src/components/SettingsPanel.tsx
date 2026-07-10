@@ -1,5 +1,5 @@
 import type { RenderSettings, Resolution, OptimizationLevel, FrameImage } from '../types';
-import { Settings, Download, Video, Image as ImageIcon, Loader2, Gauge, Zap } from 'lucide-react';
+import { Settings, Download, Video, Image as ImageIcon, Loader2, Gauge, Zap, Music, Trash2 } from 'lucide-react';
 import { Uploader } from './Uploader';
 
 interface SettingsPanelProps {
@@ -10,9 +10,14 @@ interface SettingsPanelProps {
   progress: number;
   hasFrames: boolean;
   isFfmpegLoaded: boolean;
+  ffmpegLoadProgress?: number;
   onUpload: (frames: FrameImage[]) => void;
   onVideoSelect: (file: File) => void;
   onGifSelect: (file: File) => void;
+  audioTrack: File | null;
+  setAudioTrack: React.Dispatch<React.SetStateAction<File | null>>;
+  audioVolume: number;
+  setAudioVolume: React.Dispatch<React.SetStateAction<number>>;
 }
 
 const speedPresets = [
@@ -40,9 +45,14 @@ export function SettingsPanel({
   progress,
   hasFrames,
   isFfmpegLoaded,
+  ffmpegLoadProgress,
   onUpload,
   onVideoSelect,
   onGifSelect,
+  audioTrack,
+  setAudioTrack,
+  audioVolume,
+  setAudioVolume,
 }: SettingsPanelProps) {
   
   return (
@@ -204,6 +214,69 @@ export function SettingsPanel({
             </div>
           </div>
         )}
+
+        {/* Audio upload and settings (MP4 only) */}
+        {settings.format === 'mp4' && (
+          <div className="pt-4 border-t border-dark-border/40 mt-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Music size={16} className="text-gray-300" />
+              <label className="text-sm font-medium text-gray-300">Pista de Audio / Música</label>
+            </div>
+            
+            {audioTrack ? (
+              <div className="bg-dark-bg/80 border border-dark-border rounded-xl p-3.5 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-gray-200 truncate" title={audioTrack.name}>
+                      {audioTrack.name}
+                    </p>
+                    <p className="text-[10px] text-gray-500 mt-0.5">
+                      {(audioTrack.size / (1024 * 1024)).toFixed(2)} MB
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setAudioTrack(null)}
+                    className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
+                    title="Eliminar audio"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
+
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-[11px] text-gray-400">
+                    <span>Volumen</span>
+                    <span className="font-mono text-cta">{Math.round(audioVolume * 100)}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={audioVolume}
+                    onChange={(e) => setAudioVolume(parseFloat(e.target.value))}
+                    className="w-full h-1 bg-dark-border rounded-lg appearance-none cursor-pointer accent-cta"
+                  />
+                </div>
+              </div>
+            ) : (
+              <label className="flex flex-col items-center justify-center border border-dashed border-dark-border hover:border-gray-500 bg-dark-bg/30 hover:bg-dark-bg/50 rounded-xl p-4 transition-colors cursor-pointer text-center">
+                <Music size={20} className="text-gray-500 mb-1.5" />
+                <span className="text-[11px] text-gray-400 font-medium">Subir archivo de audio</span>
+                <span className="text-[9px] text-gray-600 mt-0.5">MP3, WAV, M4A, AAC</span>
+                <input
+                  type="file"
+                  accept="audio/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) setAudioTrack(file);
+                  }}
+                  className="hidden"
+                />
+              </label>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="mt-8 pt-6 border-t border-dark-border">
@@ -234,7 +307,7 @@ export function SettingsPanel({
             {!isFfmpegLoaded ? (
               <>
                 <Loader2 size={20} className="animate-spin" />
-                <span>Cargando motor FFmpeg...</span>
+                <span>Cargando motor FFmpeg {ffmpegLoadProgress ? `(${ffmpegLoadProgress}%)` : ''}...</span>
               </>
             ) : (
               <>

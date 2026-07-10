@@ -233,6 +233,8 @@ interface PreviewPlayerProps {
   onTimeUpdate?: (time: number) => void;
   isPlaying?: boolean;
   onPlayStateChange?: (playing: boolean) => void;
+  audioTrack?: File | null;
+  audioVolume?: number;
 }
 
 export interface PreviewPlayerRef {
@@ -243,7 +245,15 @@ export interface PreviewPlayerRef {
   isPlaying: boolean;
 }
 
-export const PreviewPlayer = forwardRef<PreviewPlayerRef, PreviewPlayerProps>(({ frames, globalSpeed, onTimeUpdate, isPlaying: externalIsPlaying, onPlayStateChange }, ref) => {
+export const PreviewPlayer = forwardRef<PreviewPlayerRef, PreviewPlayerProps>(({
+  frames,
+  globalSpeed,
+  onTimeUpdate,
+  isPlaying: externalIsPlaying,
+  onPlayStateChange,
+  audioTrack,
+  audioVolume = 1
+}, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [internalIsPlaying, setInternalIsPlaying] = useState(false);
   const isPlaying = externalIsPlaying !== undefined ? externalIsPlaying : internalIsPlaying;
@@ -264,6 +274,83 @@ export const PreviewPlayer = forwardRef<PreviewPlayerRef, PreviewPlayerProps>(({
   const lastTimeRef = useRef<number>(0);
   const imagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
   const currentFrameRef = useRef(0);
+
+  const lastSfxFrameRef = useRef<number>(-1);
+
+  // Reset last SFX frame reference when we pause
+  useEffect(() => {
+    if (!isPlaying) {
+      lastSfxFrameRef.current = -1;
+    }
+  }, [isPlaying]);
+
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Handle audio source loading and loop settings
+  useEffect(() => {
+    if (audioTrack) {
+      const url = URL.createObjectURL(audioTrack);
+      if (!audioRef.current) {
+        audioRef.current = new Audio(url);
+      } else {
+        audioRef.current.src = url;
+      }
+      audioRef.current.loop = true;
+      audioRef.current.volume = audioVolume;
+      audioRef.current.playbackRate = globalSpeed;
+      
+      // If currently playing, start the audio
+      if (isPlaying) {
+        audioRef.current.play().catch(err => console.log("Audio play failed on source change:", err));
+      }
+
+      return () => {
+        if (audioRef.current) {
+          audioRef.current.pause();
+        }
+        URL.revokeObjectURL(url);
+      };
+    } else {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    }
+  }, [audioTrack]);
+
+  // Sync volume changes
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = audioVolume;
+    }
+  }, [audioVolume]);
+
+  // Sync playback speed rate
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.playbackRate = globalSpeed;
+    }
+  }, [globalSpeed]);
+
+  // Sync play/pause state
+  useEffect(() => {
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      audioRef.current.play().catch(err => console.log("Audio play failed on play/pause sync:", err));
+    } else {
+      audioRef.current.pause();
+    }
+  }, [isPlaying]);
+
+  // Clean up audio on unmount
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
 
   // Preload images
   useEffect(() => {
@@ -299,6 +386,15 @@ export const PreviewPlayer = forwardRef<PreviewPlayerRef, PreviewPlayerProps>(({
       setCurrentFrame(targetFrame);
       currentFrameRef.current = targetFrame;
       frameProgressRef.current = frameProgress;
+
+      // Sync audio playhead
+      if (audioRef.current) {
+        if (audioRef.current.duration) {
+          audioRef.current.currentTime = timeInSeconds % audioRef.current.duration;
+        } else {
+          audioRef.current.currentTime = timeInSeconds;
+        }
+      }
       
       if (onTimeUpdate) {
         onTimeUpdate(timeInSeconds);
@@ -662,11 +758,38 @@ export const PreviewPlayer = forwardRef<PreviewPlayerRef, PreviewPlayerProps>(({
       const frameDuration = frames[cf]?.duration || 1;
       if (fp >= frameDuration) {
         fp = 0;
+        const prevCf = cf;
         cf = (cf + 1) % frames.length;
+        
+        // Loop back to start of audio if we wrapped around to frame 0
+        if (cf === 0 && prevCf !== 0 && audioRef.current) {
+          audioRef.current.currentTime = 0;
+        }
+        
         currentFrameRef.current = cf;
         setCurrentFrame(cf);
       }
       frameProgressRef.current = fp;
+
+      // Play frame SFX if present and not triggered yet for this frame
+      const frame = frames[cf];
+      if (frame && frame.sfx && lastSfxFrameRef.current !== cf) {
+        lastSfxFrameRef.current = cf;
+        const sfxAudio = new Audio(frame.sfx.url);
+        sfxAudio.volume = frame.sfx.volume;
+        sfxAudio.playbackRate = globalSpeed;
+        sfxAudio.currentTime = frame.sfx.start || 0;
+        
+        const endLimit = frame.sfx.end;
+        const onTimeUpdate = () => {
+          if (sfxAudio.currentTime >= endLimit) {
+            sfxAudio.pause();
+            sfxAudio.removeEventListener('timeupdate', onTimeUpdate);
+          }
+        };
+        sfxAudio.addEventListener('timeupdate', onTimeUpdate);
+        sfxAudio.play().catch(e => console.log("SFX play failed:", e));
+      }
 
       if (onTimeUpdate) {
         let currentTime = 0;
@@ -678,7 +801,6 @@ export const PreviewPlayer = forwardRef<PreviewPlayerRef, PreviewPlayerProps>(({
       }
 
       const progress = fp / frameDuration;
-      const frame = frames[cf];
       const img = imagesRef.current.get(frame.id);
 
       // Clear

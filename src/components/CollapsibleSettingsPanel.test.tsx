@@ -29,6 +29,10 @@ const defaultProps = {
   onUpload: vi.fn(),
   onVideoSelect: vi.fn(),
   onGifSelect: vi.fn(),
+  audioTrack: null,
+  setAudioTrack: vi.fn(),
+  audioVolume: 1.0,
+  setAudioVolume: vi.fn(),
 };
 
 describe('CollapsibleSettingsPanel', () => {

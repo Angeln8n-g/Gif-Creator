@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { FrameImage, AnimationType, TransitionType, TextOverlay, StickerOverlay, CropSettings } from '../types';
 import { AnimationPicker } from './AnimationPicker';
 import { TransitionPicker } from './TransitionPicker';
@@ -7,7 +7,7 @@ import { StickerPicker } from './StickerPicker';
 import { CropEditor } from './CropEditor';
 import { EditorModal } from './EditorModal';
 import { FramePreviewCanvas } from './FramePreviewCanvas';
-import { Trash2, Crop, Type, Smile } from 'lucide-react';
+import { Trash2, Crop, Type, Smile, Volume2, Music } from 'lucide-react';
 
 interface FrameInspectorProps {
   frame: FrameImage;
@@ -19,9 +19,10 @@ interface FrameInspectorProps {
   onTextChange: (id: string, text: TextOverlay | undefined) => void;
   onStickersChange: (id: string, stickers: StickerOverlay[]) => void;
   onCropChange: (id: string, crop: CropSettings | undefined) => void;
+  onSfxChange: (id: string, sfx: FrameImage['sfx'] | undefined) => void;
 }
 
-type ModalType = 'crop' | 'text' | 'stickers' | null;
+type ModalType = 'crop' | 'text' | 'stickers' | 'sfx' | null;
 
 export function FrameInspector({
   frame,
@@ -33,8 +34,28 @@ export function FrameInspector({
   onTextChange,
   onStickersChange,
   onCropChange,
+  onSfxChange,
 }: FrameInspectorProps) {
   const [activeModal, setActiveModal] = useState<ModalType>(null);
+  const [sfxDuration, setSfxDuration] = useState<number>(10);
+
+  // Auto-load metadata duration when frame SFX changes
+  useEffect(() => {
+    if (frame.sfx) {
+      const tempAudio = new Audio(frame.sfx.url);
+      const onLoadedMetadata = () => {
+        if (tempAudio.duration && !isNaN(tempAudio.duration)) {
+          setSfxDuration(tempAudio.duration);
+        }
+      };
+      tempAudio.addEventListener('loadedmetadata', onLoadedMetadata);
+      tempAudio.load();
+      return () => {
+        tempAudio.removeEventListener('loadedmetadata', onLoadedMetadata);
+        tempAudio.pause();
+      };
+    }
+  }, [frame.sfx?.url]);
 
   // Badge helpers
   const hasCrop = frame.crop && frame.crop.shape !== 'none';
@@ -183,6 +204,29 @@ export function FrameInspector({
               </div>
               {hasStickers && <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />}
             </button>
+
+            {/* SFX Button */}
+            <button
+              onClick={() => setActiveModal('sfx')}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all duration-200 cursor-pointer group
+                ${frame.sfx
+                  ? 'bg-rose-500/10 border-rose-500/30 hover:bg-rose-500/20'
+                  : 'bg-dark-bg/50 border-dark-border hover:border-rose-500/40 hover:bg-rose-500/5'
+                }`}
+            >
+              <div className={`p-2 rounded-lg transition-colors ${frame.sfx ? 'bg-rose-500/20 text-rose-400' : 'bg-dark-bg text-gray-500 group-hover:text-rose-400'}`}>
+                <Volume2 size={18} />
+              </div>
+              <div className="flex-1 text-left">
+                <span className={`text-xs font-medium block ${frame.sfx ? 'text-rose-400' : 'text-gray-300'}`}>
+                  Efecto de Sonido (SFX)
+                </span>
+                <span className="text-[10px] text-gray-500">
+                  {frame.sfx ? frame.sfx.name : 'Sin efectos de sonido'}
+                </span>
+              </div>
+              {frame.sfx && <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />}
+            </button>
           </div>
 
         </div>
@@ -246,6 +290,177 @@ export function FrameInspector({
           stickers={frame.stickers}
           onChange={(stickers) => onStickersChange(frame.id, stickers)}
         />
+      </EditorModal>
+
+      {/* ── SFX Modal ── */}
+      <EditorModal
+        isOpen={activeModal === 'sfx'}
+        onClose={() => setActiveModal(null)}
+        title="Efecto de Sonido (SFX)"
+        icon={<Volume2 size={16} />}
+        accentColor="rose"
+        preview={
+          <div className="flex flex-col items-center justify-center h-full p-6 text-center space-y-4">
+            <div className="w-16 h-16 bg-rose-500/10 border border-rose-500/20 rounded-full flex items-center justify-center text-rose-400 shadow-md">
+              <Volume2 size={32} className={frame.sfx ? "animate-bounce" : ""} />
+            </div>
+            {frame.sfx ? (
+              <div className="space-y-1">
+                <p className="text-sm font-semibold text-gray-200 max-w-[250px] truncate">
+                  {frame.sfx.name}
+                </p>
+                <p className="text-xs text-gray-500">
+                  {(frame.sfx.file.size / 1024).toFixed(1)} KB
+                </p>
+                <button
+                  onClick={() => {
+                    if (!frame.sfx) return;
+                    const audio = new Audio(frame.sfx.url);
+                    audio.volume = frame.sfx.volume;
+                    audio.currentTime = frame.sfx.start;
+                    
+                    const onTimeUpdate = () => {
+                      if (audio.currentTime >= frame.sfx!.end) {
+                        audio.pause();
+                        audio.removeEventListener('timeupdate', onTimeUpdate);
+                      }
+                    };
+                    audio.addEventListener('timeupdate', onTimeUpdate);
+                    audio.play().catch(e => console.log("Test play failed:", e));
+                  }}
+                  className="mt-3 px-4 py-1.5 bg-rose-500/20 text-rose-400 hover:bg-rose-500/30 rounded-lg text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  Probar sonido
+                </button>
+              </div>
+            ) : (
+              <p className="text-xs text-gray-500">
+                Ningún efecto de sonido cargado para este fotograma.
+              </p>
+            )}
+          </div>
+        }
+      >
+        <div className="p-4 space-y-6">
+          {frame.sfx ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-3.5 bg-dark-bg/60 border border-dark-border rounded-xl">
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-semibold text-gray-200 truncate">{frame.sfx.name}</p>
+                </div>
+                <button
+                  onClick={() => onSfxChange(frame.id, undefined)}
+                  className="p-1.5 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs text-gray-300">
+                  <span>Volumen del efecto</span>
+                  <span className="font-mono text-rose-400">{Math.round(frame.sfx.volume * 100)}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={frame.sfx.volume}
+                  onChange={(e) => {
+                    const volume = parseFloat(e.target.value);
+                    onSfxChange(frame.id, { ...frame.sfx!, volume });
+                  }}
+                  className="w-full h-1.5 bg-dark-border rounded-lg appearance-none cursor-pointer accent-rose-500"
+                />
+              </div>
+
+              {/* SFX Trimmer */}
+              <div className="space-y-4 pt-4 border-t border-dark-border/40">
+                <h5 className="text-xs font-semibold text-gray-300">Recorte del Audio (Trimmer)</h5>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between text-[11px] text-gray-400">
+                      <span>Inicio</span>
+                      <span className="font-mono text-rose-400">{frame.sfx.start.toFixed(2)}s</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max={sfxDuration.toString()}
+                      step="0.05"
+                      value={frame.sfx.start}
+                      onChange={(e) => {
+                        const start = parseFloat(e.target.value);
+                        const end = Math.max(start + 0.1, frame.sfx!.end);
+                        onSfxChange(frame.id, { ...frame.sfx!, start, end });
+                      }}
+                      className="w-full h-1 bg-dark-border rounded-lg appearance-none cursor-pointer accent-rose-500"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between text-[11px] text-gray-400">
+                      <span>Fin</span>
+                      <span className="font-mono text-rose-400">{frame.sfx.end.toFixed(2)}s</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max={sfxDuration.toString()}
+                      step="0.05"
+                      value={frame.sfx.end}
+                      onChange={(e) => {
+                        const end = parseFloat(e.target.value);
+                        const start = Math.min(end - 0.1, frame.sfx!.start);
+                        onSfxChange(frame.id, { ...frame.sfx!, start, end });
+                      }}
+                      className="w-full h-1 bg-dark-border rounded-lg appearance-none cursor-pointer accent-rose-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center text-[10px] text-gray-500">
+                  <span>Duración del clip: {(frame.sfx.end - frame.sfx.start).toFixed(2)}s</span>
+                  <span>Duración total: {sfxDuration.toFixed(2)}s</span>
+                </div>
+              </div>
+
+            </div>
+          ) : (
+            <label className="flex flex-col items-center justify-center border-2 border-dashed border-dark-border hover:border-rose-500/40 bg-dark-bg/30 hover:bg-rose-500/5 rounded-xl p-8 transition-colors cursor-pointer text-center group">
+              <Music size={28} className="text-gray-500 mb-2 group-hover:text-rose-400 transition-colors" />
+              <span className="text-xs font-semibold text-gray-300">Seleccionar Efecto de Sonido</span>
+              <span className="text-[10px] text-gray-500 mt-1">Soporta MP3, WAV, M4A</span>
+              <input
+                type="file"
+                accept="audio/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    const url = URL.createObjectURL(file);
+                    // Fetch duration to initialize start/end
+                    const tempAudio = new Audio(url);
+                    tempAudio.addEventListener('loadedmetadata', () => {
+                      const duration = tempAudio.duration || 1.0;
+                      onSfxChange(frame.id, {
+                        name: file.name,
+                        url,
+                        file,
+                        volume: 1.0,
+                        start: 0,
+                        end: duration
+                      });
+                    });
+                    tempAudio.load();
+                  }
+                }}
+                className="hidden"
+              />
+            </label>
+          )}
+        </div>
       </EditorModal>
     </>
   );

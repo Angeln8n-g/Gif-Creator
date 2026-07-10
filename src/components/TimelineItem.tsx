@@ -15,7 +15,7 @@ const CATEGORY_LABELS: Record<string, string> = {
 interface TimelineItemProps {
   frame: FrameImage;
   isSelected: boolean;
-  onSelect: (id: string) => void;
+  onSelect: (id: string, e: React.MouseEvent) => void;
   onDurationChange: (id: string, duration: number) => void;
   /** Frame is the Effect_Clipboard source */
   isSource?: boolean;
@@ -112,14 +112,14 @@ export function TimelineItem({
     : isTarget
     ? 'border-blue-400 ring-1 ring-blue-400 shadow-lg shadow-blue-400/20'
     : isSelected
-    ? 'border-cta ring-1 ring-cta shadow-lg shadow-cta/20'
+    ? 'border-cta ring-2 ring-cta shadow-lg shadow-cta/20'
     : 'border-dark-border hover:border-gray-500';
 
-  const handleFrameClick = () => {
+  const handleFrameClick = (e: React.MouseEvent) => {
     if (canPaste && onToggleTarget) {
       onToggleTarget(frame.id);
     } else {
-      onSelect(frame.id);
+      onSelect(frame.id, e);
     }
   };
 
@@ -166,6 +166,7 @@ export function TimelineItem({
             {frame.text && <div className="w-2 h-2 rounded-full bg-blue-500" title="Texto" />}
             {frame.stickers.length > 0 && <div className="w-2 h-2 rounded-full bg-yellow-500" title="Stickers" />}
             {frame.crop && frame.crop.shape !== 'none' && <div className="w-2 h-2 rounded-full bg-emerald-500" title="Recorte" />}
+            {frame.sfx && <div className="w-2 h-2 rounded-full bg-rose-500" title="Sonido SFX" />}
           </div>
         </div>
       </div>

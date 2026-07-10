@@ -27,6 +27,7 @@ import type {
 } from '../types';
 import { TimelineItem } from './TimelineItem';
 import { FrameInspector } from './FrameInspector';
+import { BatchFrameInspector } from './BatchFrameInspector';
 import { CopyEffectsMenu } from './CopyEffectsMenu';
 import { EffectsStatusBanner } from './EffectsStatusBanner';
 import { PasteNotification } from './PasteNotification';
@@ -42,7 +43,8 @@ interface TimelineEditorProps {
 }
 
 export function TimelineEditor({ frames, setFrames, currentTime, playerRef }: TimelineEditorProps) {
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
   const [isScrubbing, setIsScrubbing] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -50,21 +52,97 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef }: Ti
   const [effectClipboard, setEffectClipboard] = useState<EffectClipboard | null>(null);
   const [effectMask, setEffectMask] = useState<EffectMask>(new Set());
   const [targetFrameIds, setTargetFrameIds] = useState<Set<string>>(new Set());
-  const [, setUndoStack] = useState<FrameImage[][]>([]);
   const [pasteNotificationCount, setPasteNotificationCount] = useState<number | null>(null);
   const [showCopyMenu, setShowCopyMenu] = useState(false);
   // ────────────────────────────────────────────────────────────────────────────
 
-  // Auto-select first frame if none is selected
+  // Auto-select first frame if selection is empty and frames are loaded
   useEffect(() => {
-    if (frames.length > 0 && !selectedId) {
-      setSelectedId(frames[0].id);
-    } else if (frames.length === 0) {
-      setSelectedId(null);
-    } else if (selectedId && !frames.find(f => f.id === selectedId)) {
-      setSelectedId(frames[0].id);
-    }
-  }, [frames, selectedId]);
+    setSelectedIds((prev) => {
+      const next = new Set<string>();
+      prev.forEach((id) => {
+        if (frames.some((f) => f.id === id)) {
+          next.add(id);
+        }
+      });
+      
+      if (next.size === 0 && frames.length > 0) {
+        next.add(frames[0].id);
+        setLastSelectedId(frames[0].id);
+      }
+      return next;
+    });
+  }, [frames]);
+
+  const handleSelect = useCallback((id: string, e?: React.MouseEvent) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      
+      if (e?.ctrlKey || e?.metaKey) {
+        // Toggle selection
+        if (next.has(id)) {
+          next.delete(id);
+          if (lastSelectedId === id) {
+            setLastSelectedId(next.size > 0 ? Array.from(next)[next.size - 1] : null);
+          }
+        } else {
+          next.add(id);
+          setLastSelectedId(id);
+        }
+      } else if (e?.shiftKey && lastSelectedId) {
+        // Range selection
+        const currentIndex = frames.findIndex((f) => f.id === id);
+        const lastIndex = frames.findIndex((f) => f.id === lastSelectedId);
+        
+        if (currentIndex !== -1 && lastIndex !== -1) {
+          const start = Math.min(currentIndex, lastIndex);
+          const end = Math.max(currentIndex, lastIndex);
+          
+          next.clear();
+          for (let i = start; i <= end; i++) {
+            next.add(frames[i].id);
+          }
+        }
+      } else {
+        // Single selection
+        next.clear();
+        next.add(id);
+        setLastSelectedId(id);
+      }
+      
+      return next;
+    });
+  }, [frames, lastSelectedId]);
+
+  // Batch controllers
+  const handleRemoveSelected = useCallback(() => {
+    setFrames((items) => items.filter((f) => !selectedIds.has(f.id)));
+    setSelectedIds(new Set());
+  }, [selectedIds, setFrames]);
+
+  const handleDurationChangeSelected = useCallback((duration: number) => {
+    setFrames((items) =>
+      items.map((f) => (selectedIds.has(f.id) ? { ...f, duration } : f))
+    );
+  }, [selectedIds, setFrames]);
+
+  const handleAnimationChangeSelected = useCallback((animation: AnimationType) => {
+    setFrames((items) =>
+      items.map((f) => (selectedIds.has(f.id) ? { ...f, animation } : f))
+    );
+  }, [selectedIds, setFrames]);
+
+  const handleTransitionChangeSelected = useCallback((transition: TransitionType) => {
+    setFrames((items) =>
+      items.map((f) => (selectedIds.has(f.id) ? { ...f, transition } : f))
+    );
+  }, [selectedIds, setFrames]);
+
+  const handleTransitionDurationChangeSelected = useCallback((duration: number) => {
+    setFrames((items) =>
+      items.map((f) => (selectedIds.has(f.id) ? { ...f, transitionDuration: duration } : f))
+    );
+  }, [selectedIds, setFrames]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -135,6 +213,12 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef }: Ti
     );
   };
 
+  const handleSfxChange = (id: string, sfx: FrameImage['sfx'] | undefined) => {
+    setFrames((items) =>
+      items.map((i) => (i.id === id ? { ...i, sfx } : i))
+    );
+  };
+
   // ─── Effects Copy-Paste Callbacks ──────────────────────────────────────────
 
   /** Reset all clipboard state */
@@ -142,7 +226,6 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef }: Ti
     setEffectClipboard(null);
     setEffectMask(new Set());
     setTargetFrameIds(new Set());
-    setUndoStack([]);
     setShowCopyMenu(false);
   }, []);
 
@@ -217,21 +300,19 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef }: Ti
   /** Paste to a single frame by id */
   const pasteToFrame = useCallback((id: string) => {
     if (!effectClipboard || id === effectClipboard.sourceFrameId) return;
-    setUndoStack((prev) => [...prev, frames]);
     setFrames((items) =>
       items.map((f) =>
         f.id === id ? applyEffectMask(f, effectClipboard.sourceEffects, effectMask) : f
       )
     );
     setPasteNotificationCount(1);
-  }, [effectClipboard, effectMask, frames, setFrames]);
+  }, [effectClipboard, effectMask, setFrames]);
 
   /** Paste to all frames in targetFrameIds (excluding source) */
   const pasteToSelected = useCallback(() => {
     if (!effectClipboard) return;
     const eligible = [...targetFrameIds].filter((id) => id !== effectClipboard.sourceFrameId);
     if (eligible.length === 0) return;
-    setUndoStack((prev) => [...prev, frames]);
     setFrames((items) =>
       items.map((f) =>
         eligible.includes(f.id)
@@ -240,12 +321,11 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef }: Ti
       )
     );
     setPasteNotificationCount(eligible.length);
-  }, [effectClipboard, effectMask, targetFrameIds, frames, setFrames]);
+  }, [effectClipboard, effectMask, targetFrameIds, setFrames]);
 
   /** Paste to every frame except source */
   const pasteToAll = useCallback(() => {
     if (!effectClipboard) return;
-    setUndoStack((prev) => [...prev, frames]);
     const count = frames.filter((f) => f.id !== effectClipboard.sourceFrameId).length;
     setFrames((items) =>
       items.map((f) =>
@@ -256,22 +336,6 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef }: Ti
     );
     setPasteNotificationCount(count);
   }, [effectClipboard, effectMask, frames, setFrames]);
-
-  // ─── Undo (Ctrl+Z) ──────────────────────────────────────────────────────────
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.key === 'z') {
-        setUndoStack((prev) => {
-          if (prev.length === 0) return prev;
-          const snapshot = prev[prev.length - 1];
-          setFrames(snapshot);
-          return prev.slice(0, -1);
-        });
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [setFrames]);
 
   // ─── Guard: clear clipboard if source frame is deleted ──────────────────────
   useEffect(() => {
@@ -306,7 +370,11 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef }: Ti
     }
   }
 
-  const selectedFrame = frames.find(f => f.id === selectedId);
+  const selectedFrame = selectedIds.size === 1 
+    ? frames.find(f => selectedIds.has(f.id)) 
+    : undefined;
+  
+  const selectedFrames = frames.filter(f => selectedIds.has(f.id));
 
   const calculateSeekTime = (clientX: number) => {
     if (!containerRef.current) return 0;
@@ -437,8 +505,8 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef }: Ti
                   <TimelineItem
                     key={frame.id}
                     frame={frame}
-                    isSelected={frame.id === selectedId}
-                    onSelect={setSelectedId}
+                    isSelected={selectedIds.has(frame.id)}
+                    onSelect={handleSelect}
                     onDurationChange={handleDurationChange}
                     isSource={effectClipboard?.sourceFrameId === frame.id}
                     isTarget={targetFrameIds.has(frame.id)}
@@ -505,7 +573,7 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef }: Ti
       )}
 
       {/* Inspector (Properties Panel) */}
-      {selectedFrame && (
+      {selectedIds.size === 1 && selectedFrame && (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
           <FrameInspector
             frame={selectedFrame}
@@ -517,6 +585,20 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef }: Ti
             onTextChange={handleTextChange}
             onStickersChange={handleStickersChange}
             onCropChange={handleCropChange}
+            onSfxChange={handleSfxChange}
+          />
+        </div>
+      )}
+
+      {selectedIds.size > 1 && (
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <BatchFrameInspector
+            selectedFrames={selectedFrames}
+            onRemoveSelected={handleRemoveSelected}
+            onDurationChangeSelected={handleDurationChangeSelected}
+            onAnimationChangeSelected={handleAnimationChangeSelected}
+            onTransitionChangeSelected={handleTransitionChangeSelected}
+            onTransitionDurationChangeSelected={handleTransitionDurationChangeSelected}
           />
         </div>
       )}

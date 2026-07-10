@@ -13,9 +13,12 @@ interface CanvasWorkspaceProps {
   selectedVideo: File | null;
   isRemoving: boolean;
   bgProgress: number;
+  bgDownloadProgress: number | null;
   playerRef: React.RefObject<PreviewPlayerRef | null>;
   isPlaying: boolean;
   currentTime: number;
+  audioTrack: File | null;
+  audioVolume: number;
   onPlayStateChange: (playing: boolean) => void;
   onTimeUpdate: (time: number) => void;
   onUpload: (frames: FrameImage[]) => void;
@@ -37,6 +40,7 @@ export function CanvasWorkspace({
   selectedVideo,
   isRemoving,
   bgProgress,
+  bgDownloadProgress,
   playerRef,
   isPlaying,
   currentTime,
@@ -49,6 +53,8 @@ export function CanvasWorkspace({
   onClearFrames,
   onVideoDismiss,
   setFrames,
+  audioTrack,
+  audioVolume,
 }: CanvasWorkspaceProps) {
   // Determine which canvas state to render — mutually exclusive
   const showEmpty = frames.length === 0 && !isExtractingGif;
@@ -144,6 +150,8 @@ export function CanvasWorkspace({
           onTimeUpdate={onTimeUpdate}
           isPlaying={isPlaying}
           onPlayStateChange={onPlayStateChange}
+          audioTrack={audioTrack}
+          audioVolume={audioVolume}
         />
       )}
 
@@ -184,7 +192,12 @@ export function CanvasWorkspace({
                   <Wand2 size={16} />
                 )}
                 <span className="hidden sm:inline">
-                  {isRemoving ? `Removiendo... ${bgProgress}%` : 'Quitar Fondo (IA)'}
+                  {isRemoving
+                    ? bgDownloadProgress !== null
+                      ? `Descargando IA... ${bgDownloadProgress}%`
+                      : `Removiendo... ${bgProgress}%`
+                    : 'Quitar Fondo (IA)'
+                  }
                 </span>
               </button>
 
