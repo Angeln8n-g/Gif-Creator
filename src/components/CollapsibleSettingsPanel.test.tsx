@@ -33,6 +33,7 @@ const defaultProps = {
   setAudioTrack: vi.fn(),
   audioVolume: 1.0,
   setAudioVolume: vi.fn(),
+  frames: [],
 };
 
 describe('CollapsibleSettingsPanel', () => {

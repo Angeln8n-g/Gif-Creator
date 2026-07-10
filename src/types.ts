@@ -124,6 +124,10 @@ export interface RenderSettings {
   customHeight?: number;
   globalSpeed: number; // multiplier: 0.25 – 4.0
   optimization: OptimizationLevel;
+  gifColors?: number;
+  gifDither?: 'floyd_steinberg' | 'bayer' | 'none';
+  webpQuality?: number;
+  mp4Quality?: number;
 }
 
 // ─── Effects Copy-Paste Types ───

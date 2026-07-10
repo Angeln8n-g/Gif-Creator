@@ -21,6 +21,7 @@ interface CollapsibleSettingsPanelProps {
   setAudioTrack: React.Dispatch<React.SetStateAction<File | null>>;
   audioVolume: number;
   setAudioVolume: React.Dispatch<React.SetStateAction<number>>;
+  frames: FrameImage[];
 }
 
 /**
@@ -52,6 +53,7 @@ export function CollapsibleSettingsPanel({
   setAudioTrack,
   audioVolume,
   setAudioVolume,
+  frames,
 }: CollapsibleSettingsPanelProps) {
   // Detect prefers-reduced-motion so we can disable CSS transitions.
   const [reducedMotion, setReducedMotion] = useState<boolean>(() => {
@@ -98,6 +100,7 @@ export function CollapsibleSettingsPanel({
             setAudioTrack={setAudioTrack}
             audioVolume={audioVolume}
             setAudioVolume={setAudioVolume}
+            frames={frames}
           />
         </div>
       )}

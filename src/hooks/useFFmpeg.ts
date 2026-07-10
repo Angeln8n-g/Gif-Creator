@@ -514,11 +514,21 @@ export function useFFmpeg() {
       const scaleFilter = `scale=${outW}:${outH}:force_original_aspect_ratio=decrease,pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2`;
 
       if (settings.format === 'gif') {
-        if (settings.optimization !== 'none') {
+        const usePalette = settings.optimization !== 'none' || settings.gifColors !== undefined || settings.gifDither !== undefined;
+        if (usePalette) {
           // Two-pass GIF with palette for better quality and smaller size
           const statsMode = settings.optimization === 'high' ? 'diff' : 'full';
-          const dither = settings.optimization === 'high' ? 'bayer:bayer_scale=3' : 'floyd_steinberg';
-          const maxColors = settings.optimization === 'high' ? 64 : settings.optimization === 'medium' ? 128 : 256;
+          
+          let dither = 'floyd_steinberg';
+          if (settings.gifDither !== undefined) {
+            dither = settings.gifDither === 'bayer' ? 'bayer:bayer_scale=3' : settings.gifDither;
+          } else {
+            dither = settings.optimization === 'high' ? 'bayer:bayer_scale=3' : 'floyd_steinberg';
+          }
+
+          const maxColors = settings.gifColors !== undefined ? settings.gifColors : (
+            settings.optimization === 'high' ? 64 : settings.optimization === 'medium' ? 128 : 256
+          );
 
           // Pass 1: generate palette
           await ffmpeg.exec([
@@ -546,7 +556,9 @@ export function useFFmpeg() {
           ]);
         }
       } else if (settings.format === 'webp') {
-        const qv = settings.optimization === 'high' ? 50 : settings.optimization === 'medium' ? 75 : 90;
+        const qv = settings.webpQuality !== undefined ? settings.webpQuality : (
+          settings.optimization === 'high' ? 50 : settings.optimization === 'medium' ? 75 : 90
+        );
         await ffmpeg.exec([
           '-f', 'concat', '-safe', '0', '-i', 'concat_list.txt',
           '-vf', scaleFilter,
@@ -610,9 +622,16 @@ export function useFFmpeg() {
           inputIndex++;
         }
 
+        const crf = settings.mp4Quality !== undefined ? settings.mp4Quality : (
+          settings.optimization === 'high' ? 32 :
+          settings.optimization === 'medium' ? 26 :
+          settings.optimization === 'low' ? 21 : 18
+        );
+
         execArgs.push(
           '-vf', scaleFilter,
-          '-c:v', 'libx264', '-pix_fmt', 'yuv420p'
+          '-c:v', 'libx264', '-pix_fmt', 'yuv420p',
+          '-crf', String(crf)
         );
 
         const hasAudio = bgMusicIndex !== -1 || sfxInputs.length > 0;

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { RenderSettings, Resolution, OptimizationLevel, FrameImage } from '../types';
 import { Settings, Download, Video, Image as ImageIcon, Loader2, Gauge, Zap, Music, Trash2 } from 'lucide-react';
 import { Uploader } from './Uploader';
@@ -18,6 +19,7 @@ interface SettingsPanelProps {
   setAudioTrack: React.Dispatch<React.SetStateAction<File | null>>;
   audioVolume: number;
   setAudioVolume: React.Dispatch<React.SetStateAction<number>>;
+  frames: FrameImage[];
 }
 
 const speedPresets = [
@@ -53,7 +55,83 @@ export function SettingsPanel({
   setAudioTrack,
   audioVolume,
   setAudioVolume,
+  frames,
 }: SettingsPanelProps) {
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  const getEstimatedSize = () => {
+    if (frames.length === 0) return 0;
+    
+    let width = 1280;
+    let height = 720;
+    
+    if (settings.resolution === '480p') {
+      width = 854;
+      height = 480;
+    } else if (settings.resolution === '720p') {
+      width = 1280;
+      height = 720;
+    } else if (settings.resolution === '1080p') {
+      width = 1920;
+      height = 1080;
+    } else if (settings.resolution === 'custom') {
+      width = settings.customWidth || 1080;
+      height = settings.customHeight || 1080;
+    }
+
+    const totalFrames = frames.length;
+    
+    if (settings.format === 'gif') {
+      const colors = settings.gifColors !== undefined ? settings.gifColors : (
+        settings.optimization === 'high' ? 64 :
+        settings.optimization === 'medium' ? 128 : 256
+      );
+      const dither = settings.gifDither !== undefined ? settings.gifDither : (
+        settings.optimization === 'high' ? 'bayer' : 'floyd_steinberg'
+      );
+      
+      let compressionFactor = 0.35;
+      if (settings.optimization === 'none') compressionFactor = 0.5;
+      else if (settings.optimization === 'high' || dither === 'bayer') compressionFactor = 0.18;
+      else if (settings.optimization === 'medium') compressionFactor = 0.28;
+      
+      const bitsPerPixel = Math.log2(colors);
+      const bytesPerFrame = (width * height * bitsPerPixel) / 8;
+      
+      const estBytes = bytesPerFrame * totalFrames * compressionFactor;
+      return estBytes / (1024 * 1024);
+    } else if (settings.format === 'webp') {
+      const qv = settings.webpQuality !== undefined ? settings.webpQuality : (
+        settings.optimization === 'high' ? 50 : settings.optimization === 'medium' ? 75 : 90
+      );
+      
+      const compressionFactor = 0.05 * (qv / 100);
+      const bytesPerFrame = width * height * 3;
+      const estBytes = bytesPerFrame * totalFrames * compressionFactor;
+      return estBytes / (1024 * 1024);
+    } else {
+      const crf = settings.mp4Quality !== undefined ? settings.mp4Quality : (
+        settings.optimization === 'high' ? 32 :
+        settings.optimization === 'medium' ? 26 :
+        settings.optimization === 'low' ? 21 : 18
+      );
+      
+      let bitrateKbps = 1500;
+      if (crf <= 20) bitrateKbps = 3000;
+      else if (crf <= 26) bitrateKbps = 1500;
+      else if (crf <= 32) bitrateKbps = 750;
+      else bitrateKbps = 400;
+      
+      const pixelsScale = (width * height) / (1280 * 720);
+      const finalBitrate = bitrateKbps * pixelsScale;
+      
+      const totalDuration = frames.reduce((acc, f) => acc + (f.duration / settings.globalSpeed), 0);
+      const estBytes = totalDuration * (finalBitrate * 1000 / 8);
+      const audioOverhead = audioTrack ? audioTrack.size * 0.9 : 0;
+      
+      return (estBytes + audioOverhead) / (1024 * 1024);
+    }
+  };
   
   return (
     <div className="bg-dark-card border border-dark-border rounded-2xl p-6 flex flex-col h-full shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
@@ -274,6 +352,123 @@ export function SettingsPanel({
                   className="hidden"
                 />
               </label>
+            )}
+          </div>
+        )}
+
+        {/* Real-time File Size Estimator */}
+        {frames.length > 0 && (
+          <div className="bg-dark-bg/60 border border-dark-border/40 rounded-xl p-4 space-y-2 mt-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-400">Tamaño estimado de archivo</span>
+              <span className="text-sm font-bold text-cta font-mono">
+                ~{getEstimatedSize().toFixed(1)} MB
+              </span>
+            </div>
+            {getEstimatedSize() > 10 && settings.format === 'gif' && (
+              <div className="p-2 bg-amber-500/10 border border-amber-500/20 text-amber-400 rounded-lg text-[10px] leading-relaxed">
+                ⚠️ El tamaño estimado es alto. Considera reducir la resolución, bajar la cantidad de colores o cambiar a formato WebP/MP4.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Advanced settings toggle */}
+        <div className="pt-4 border-t border-dark-border/40 mt-4">
+          <label className="flex items-center space-x-2.5 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={showAdvanced}
+              onChange={(e) => {
+                setShowAdvanced(e.target.checked);
+                if (!e.target.checked) {
+                  setSettings(s => ({
+                    ...s,
+                    gifColors: undefined,
+                    gifDither: undefined,
+                    webpQuality: undefined,
+                    mp4Quality: undefined
+                  }));
+                }
+              }}
+              className="w-4 h-4 rounded border-dark-border bg-dark-bg text-cta focus:ring-cta accent-cta"
+            />
+            <span className="text-sm font-medium text-gray-300">Ajustes Avanzados de Compresión</span>
+          </label>
+        </div>
+
+        {showAdvanced && (
+          <div className="space-y-4 p-4 bg-dark-bg/50 border border-dark-border rounded-xl animate-in fade-in slide-in-from-top-2 duration-300">
+            {settings.format === 'gif' && (
+              <>
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] text-gray-400 font-medium">Máximo de Colores</label>
+                  <select
+                    value={settings.gifColors !== undefined ? settings.gifColors : 256}
+                    onChange={(e) => setSettings(s => ({ ...s, gifColors: parseInt(e.target.value) }))}
+                    className="w-full bg-dark-bg border border-dark-border rounded-lg px-2 py-1.5 text-xs text-light focus:outline-none focus:border-cta cursor-pointer"
+                  >
+                    <option value="16">16 colores (Súper ligero, retro)</option>
+                    <option value="32">32 colores</option>
+                    <option value="64">64 colores (Optimizado)</option>
+                    <option value="128">128 colores (Equilibrado)</option>
+                    <option value="256">256 colores (Máxima fidelidad)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[11px] text-gray-400 font-medium">Método de Dither (Difuminado)</label>
+                  <select
+                    value={settings.gifDither !== undefined ? settings.gifDither : 'floyd_steinberg'}
+                    onChange={(e) => setSettings(s => ({ ...s, gifDither: e.target.value as any }))}
+                    className="w-full bg-dark-bg border border-dark-border rounded-lg px-2 py-1.5 text-xs text-light focus:outline-none focus:border-cta cursor-pointer"
+                  >
+                    <option value="floyd_steinberg">Floyd-Steinberg (Suave)</option>
+                    <option value="bayer">Bayer (Patrón de rejilla retro)</option>
+                    <option value="none">Ninguno (Colores planos, ligero)</option>
+                  </select>
+                </div>
+              </>
+            )}
+
+            {settings.format === 'webp' && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-[11px] text-gray-400">
+                  <span>Calidad de Compresión</span>
+                  <span className="font-mono text-cta">{settings.webpQuality !== undefined ? settings.webpQuality : 75}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="10"
+                  max="100"
+                  step="5"
+                  value={settings.webpQuality !== undefined ? settings.webpQuality : 75}
+                  onChange={(e) => setSettings(s => ({ ...s, webpQuality: parseInt(e.target.value) }))}
+                  className="w-full h-1 bg-dark-border rounded-lg appearance-none cursor-pointer accent-cta"
+                />
+              </div>
+            )}
+
+            {settings.format === 'mp4' && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-[11px] text-gray-400">
+                  <span>Calidad de Video (CRF)</span>
+                  <span className="font-mono text-cta">CRF {settings.mp4Quality !== undefined ? settings.mp4Quality : 26}</span>
+                </div>
+                <input
+                  type="range"
+                  min="18"
+                  max="38"
+                  step="1"
+                  value={settings.mp4Quality !== undefined ? settings.mp4Quality : 26}
+                  onChange={(e) => setSettings(s => ({ ...s, mp4Quality: parseInt(e.target.value) }))}
+                  className="w-full h-1 bg-dark-border rounded-lg appearance-none cursor-pointer accent-cta"
+                />
+                <div className="flex justify-between text-[8px] text-gray-600">
+                  <span>CRF 18 (Mayor calidad)</span>
+                  <span>CRF 38 (Menor peso)</span>
+                </div>
+              </div>
             )}
           </div>
         )}

@@ -162,6 +162,7 @@ function App() {
           setAudioTrack={setAudioTrack}
           audioVolume={audioVolume}
           setAudioVolume={setAudioVolume}
+          frames={frames}
         />
 
         {/* Right: Canvas Workspace */}
