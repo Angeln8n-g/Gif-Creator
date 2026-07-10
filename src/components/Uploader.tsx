@@ -50,7 +50,7 @@ export function Uploader({ onUpload, onVideoSelect, onGifSelect }: UploaderProps
   return (
     <div
       {...getRootProps()}
-      className={`border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-all duration-300
+      className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all duration-300
         ${isDragActive 
           ? 'border-cta bg-cta/5 shadow-inner' 
           : 'border-dark-border bg-dark-card hover:border-cta/50 hover:bg-dark-border/50'
@@ -58,15 +58,20 @@ export function Uploader({ onUpload, onVideoSelect, onGifSelect }: UploaderProps
       `}
     >
       <input {...getInputProps()} />
-      <div className="flex flex-col items-center justify-center space-y-4">
-        <div className={`p-4 rounded-full transition-colors duration-300 ${isDragActive ? 'bg-cta text-light shadow-lg shadow-cta/20 scale-110' : 'bg-dark-border text-gray-400'}`}>
-          <UploadCloud size={32} />
+      <div className="flex flex-col items-center justify-center space-y-3">
+        <div className={`p-3 rounded-full transition-colors duration-300 ${isDragActive ? 'bg-cta text-light shadow-lg shadow-cta/20 scale-110' : 'bg-dark-border text-gray-400'}`}>
+          <UploadCloud size={24} />
         </div>
         <div>
-          <p className="text-lg font-medium text-light">
-            {isDragActive ? "Suelta los archivos aquí..." : "Arrastra y suelta imágenes, GIF o video aquí"}
+          <p className="text-sm font-semibold text-light">
+            {isDragActive ? "Suelta los archivos aquí..." : "Cargar archivos"}
           </p>
-          <p className="text-sm text-gray-500 mt-1">Soporta JPG, PNG, WEBP, GIF animado (Remix) y MP4</p>
+          <p className="text-xs text-gray-400 mt-1 max-w-[240px] mx-auto leading-normal">
+            Arrastra y suelta imágenes, GIF o video aquí o haz clic para buscar.
+          </p>
+          <p className="text-[10px] text-gray-500 mt-1.5 font-semibold uppercase tracking-wider">
+            JPG, PNG, WEBP, GIF, MP4
+          </p>
         </div>
       </div>
     </div>

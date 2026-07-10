@@ -26,6 +26,9 @@ const defaultProps = {
   hasFrames: false,
   isFfmpegLoaded: true,
   onToggle: vi.fn(),
+  onUpload: vi.fn(),
+  onVideoSelect: vi.fn(),
+  onGifSelect: vi.fn(),
 };
 
 describe('CollapsibleSettingsPanel', () => {

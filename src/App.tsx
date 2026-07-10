@@ -92,6 +92,9 @@ function App() {
           progress={progress}
           hasFrames={frames.length > 0}
           isFfmpegLoaded={loaded}
+          onUpload={handleUpload}
+          onVideoSelect={setSelectedVideo}
+          onGifSelect={handleGifSelect}
         />
 
         {/* Right: Canvas Workspace */}
@@ -110,8 +113,6 @@ function App() {
           onPlayStateChange={setIsPlaying}
           onTimeUpdate={setCurrentTime}
           onUpload={handleUpload}
-          onVideoSelect={setSelectedVideo}
-          onGifSelect={handleGifSelect}
           onResultDismiss={() => setResultUrl(null)}
           onResultDownload={handleDownload}
           onRemoveBackground={() => removeBackgroundFromFrames(frames, setFrames)}

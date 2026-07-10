@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { RenderSettings } from '../types';
+import type { RenderSettings, FrameImage } from '../types';
 import { SettingsPanel } from './SettingsPanel';
 import { PanelToggleButton } from './PanelToggleButton';
 
@@ -13,6 +13,9 @@ interface CollapsibleSettingsPanelProps {
   isFfmpegLoaded: boolean;
   isOpen: boolean;
   onToggle: () => void;
+  onUpload: (frames: FrameImage[]) => void;
+  onVideoSelect: (file: File) => void;
+  onGifSelect: (file: File) => void;
 }
 
 /**
@@ -36,6 +39,9 @@ export function CollapsibleSettingsPanel({
   isFfmpegLoaded,
   isOpen,
   onToggle,
+  onUpload,
+  onVideoSelect,
+  onGifSelect,
 }: CollapsibleSettingsPanelProps) {
   // Detect prefers-reduced-motion so we can disable CSS transitions.
   const [reducedMotion, setReducedMotion] = useState<boolean>(() => {
@@ -74,6 +80,9 @@ export function CollapsibleSettingsPanel({
             progress={progress}
             hasFrames={hasFrames}
             isFfmpegLoaded={isFfmpegLoaded}
+            onUpload={onUpload}
+            onVideoSelect={onVideoSelect}
+            onGifSelect={onGifSelect}
           />
         </div>
       )}

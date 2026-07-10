@@ -1,6 +1,5 @@
 import { Loader2, Sparkles, X, Image as ImageIcon, Wand2 } from 'lucide-react';
 import type { FrameImage, RenderSettings } from '../types';
-import { Uploader } from './Uploader';
 import { PreviewPlayer, type PreviewPlayerRef } from './PreviewPlayer';
 import { VideoTrimmer } from './VideoTrimmer';
 import { TimelineEditor } from './TimelineEditor';
@@ -20,8 +19,6 @@ interface CanvasWorkspaceProps {
   onPlayStateChange: (playing: boolean) => void;
   onTimeUpdate: (time: number) => void;
   onUpload: (frames: FrameImage[]) => void;
-  onVideoSelect: (file: File) => void;
-  onGifSelect: (file: File) => void;
   onResultDismiss: () => void;
   onResultDownload: () => void;
   onRemoveBackground: () => void;
@@ -46,8 +43,6 @@ export function CanvasWorkspace({
   onPlayStateChange,
   onTimeUpdate,
   onUpload,
-  onVideoSelect,
-  onGifSelect,
   onResultDismiss,
   onResultDownload,
   onRemoveBackground,
@@ -151,13 +146,6 @@ export function CanvasWorkspace({
           onPlayStateChange={onPlayStateChange}
         />
       )}
-
-      {/* ── Uploader ── always present regardless of canvas state */}
-      <Uploader
-        onUpload={onUpload}
-        onVideoSelect={onVideoSelect}
-        onGifSelect={onGifSelect}
-      />
 
       {/* ── VideoTrimmer modal ── shown when a video file is selected */}
       {selectedVideo !== null && (

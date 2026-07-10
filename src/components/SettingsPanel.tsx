@@ -1,5 +1,6 @@
-import type { RenderSettings, Resolution, OptimizationLevel } from '../types';
+import type { RenderSettings, Resolution, OptimizationLevel, FrameImage } from '../types';
 import { Settings, Download, Video, Image as ImageIcon, Loader2, Gauge, Zap } from 'lucide-react';
+import { Uploader } from './Uploader';
 
 interface SettingsPanelProps {
   settings: RenderSettings;
@@ -9,6 +10,9 @@ interface SettingsPanelProps {
   progress: number;
   hasFrames: boolean;
   isFfmpegLoaded: boolean;
+  onUpload: (frames: FrameImage[]) => void;
+  onVideoSelect: (file: File) => void;
+  onGifSelect: (file: File) => void;
 }
 
 const speedPresets = [
@@ -35,7 +39,10 @@ export function SettingsPanel({
   isRendering,
   progress,
   hasFrames,
-  isFfmpegLoaded
+  isFfmpegLoaded,
+  onUpload,
+  onVideoSelect,
+  onGifSelect,
 }: SettingsPanelProps) {
   
   return (
@@ -46,6 +53,12 @@ export function SettingsPanel({
       </div>
 
       <div className="space-y-6 flex-1 overflow-y-auto pr-1">
+        {/* File Uploader */}
+        <Uploader
+          onUpload={onUpload}
+          onVideoSelect={onVideoSelect}
+          onGifSelect={onGifSelect}
+        />
         {/* Output Format */}
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-3">Formato de Exportación</label>
