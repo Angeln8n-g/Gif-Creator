@@ -176,6 +176,21 @@ export function useFFmpeg() {
     }
   };
 
+function getCanvasFilter(filter: string | undefined): string {
+  if (!filter || filter === 'none') return 'none';
+  switch (filter) {
+    case 'grayscale': return 'grayscale(100%)';
+    case 'sepia': return 'sepia(100%)';
+    case 'invert': return 'invert(100%)';
+    case 'blur': return 'blur(4px)';
+    case 'warm': return 'contrast(115%) brightness(105%) sepia(30%) saturate(125%)';
+    case 'cool': return 'contrast(100%) brightness(100%) sepia(0%) saturate(80%) hue-rotate(180deg)';
+    case 'vintage': return 'sepia(60%) contrast(80%) brightness(95%) saturate(80%)';
+    case 'cyberpunk': return 'hue-rotate(295deg) saturate(160%) contrast(115%) brightness(95%)';
+    default: return 'none';
+  }
+}
+
   // Render frames to canvas for animation effects, then extract as image files
   const renderFrameToCanvas = async (
     frame: FrameImage,
@@ -183,6 +198,8 @@ export function useFFmpeg() {
     height: number,
     subFrameIndex: number,
     totalSubFrames: number,
+    nextFrame?: FrameImage,
+    watermark?: { text?: string; opacity?: number; position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' }
   ): Promise<Blob> => {
     const canvas = new OffscreenCanvas(width, height);
     const ctx = canvas.getContext('2d')!;
@@ -251,25 +268,195 @@ export function useFFmpeg() {
       }
     }
 
-    // ── Apply crop clipping + draw image ──
-    if (frame.crop && frame.crop.shape !== 'none') {
-      ctx.save();
-      buildCropPath(ctx, frame.crop, width, height);
-      ctx.clip();
-      drawImageCover(ctx, img, width, height);
-      ctx.restore();
+    // Helper to draw image with filter
+    const drawImageWithFilter = (ctx: OffscreenCanvasRenderingContext2D, image: ImageBitmap, filterStr: string | undefined, w: number, h: number) => {
+      if (filterStr && filterStr !== 'none') {
+        ctx.filter = getCanvasFilter(filterStr);
+      }
+      drawImageCover(ctx, image, w, h);
+      ctx.filter = 'none';
+    };
 
-      // Draw crop border
-      if (frame.crop.borderWidth > 0) {
-        ctx.save();
-        buildCropPath(ctx, frame.crop, width, height);
-        ctx.lineWidth = frame.crop.borderWidth;
-        ctx.strokeStyle = frame.crop.borderColor;
-        ctx.stroke();
-        ctx.restore();
+    const transWindow = frame.transitionDuration / frame.duration;
+    const isTransitioning = nextFrame && frame.transition !== 'none' && progress >= (1 - transWindow);
+
+    if (isTransitioning && nextFrame) {
+      // Draw transition blending
+      const nextImg = await createImageBitmap(nextFrame.file);
+      const tp = easeInOut((progress - (1 - transWindow)) / transWindow);
+      const w = width;
+      const h = height;
+
+      switch (frame.transition) {
+        case 'crossfade':
+          ctx.globalAlpha = 1 - tp;
+          drawImageWithFilter(ctx, img, frame.filter, w, h);
+          ctx.globalAlpha = tp;
+          drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h);
+          ctx.globalAlpha = 1;
+          break;
+        case 'slide-left':
+          ctx.save();
+          ctx.translate(-tp * w, 0);
+          drawImageWithFilter(ctx, img, frame.filter, w, h);
+          ctx.translate(w, 0);
+          drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h);
+          ctx.restore();
+          break;
+        case 'slide-right':
+          ctx.save();
+          ctx.translate(tp * w, 0);
+          drawImageWithFilter(ctx, img, frame.filter, w, h);
+          ctx.translate(-w, 0);
+          drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h);
+          ctx.restore();
+          break;
+        case 'slide-up':
+          ctx.save();
+          ctx.translate(0, -tp * h);
+          drawImageWithFilter(ctx, img, frame.filter, w, h);
+          ctx.translate(0, h);
+          drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h);
+          ctx.restore();
+          break;
+        case 'slide-down':
+          ctx.save();
+          ctx.translate(0, tp * h);
+          drawImageWithFilter(ctx, img, frame.filter, w, h);
+          ctx.translate(0, -h);
+          drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h);
+          ctx.restore();
+          break;
+        case 'wipe-left':
+          drawImageWithFilter(ctx, img, frame.filter, w, h);
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(0, 0, tp * w, h);
+          ctx.clip();
+          drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h);
+          ctx.restore();
+          break;
+        case 'wipe-right':
+          drawImageWithFilter(ctx, img, frame.filter, w, h);
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(w - tp * w, 0, tp * w, h);
+          ctx.clip();
+          drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h);
+          ctx.restore();
+          break;
+        case 'wipe-up':
+          drawImageWithFilter(ctx, img, frame.filter, w, h);
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(0, h - tp * h, w, tp * h);
+          ctx.clip();
+          drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h);
+          ctx.restore();
+          break;
+        case 'wipe-down':
+          drawImageWithFilter(ctx, img, frame.filter, w, h);
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(0, 0, w, tp * h);
+          ctx.clip();
+          drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h);
+          ctx.restore();
+          break;
+        case 'fade-black':
+          if (tp < 0.5) {
+            ctx.globalAlpha = 1 - tp * 2;
+            drawImageWithFilter(ctx, img, frame.filter, w, h);
+          } else {
+            ctx.globalAlpha = (tp - 0.5) * 2;
+            drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h);
+          }
+          ctx.globalAlpha = 1;
+          break;
+        case 'fade-white':
+          if (tp < 0.5) {
+            ctx.globalAlpha = 1 - tp * 2;
+            drawImageWithFilter(ctx, img, frame.filter, w, h);
+            ctx.fillStyle = `rgba(255, 255, 255, ${tp * 2})`;
+            ctx.fillRect(0, 0, w, h);
+          } else {
+            ctx.globalAlpha = (tp - 0.5) * 2;
+            drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h);
+            ctx.fillStyle = `rgba(255, 255, 255, ${(1 - tp) * 2})`;
+            ctx.fillRect(0, 0, w, h);
+          }
+          ctx.globalAlpha = 1;
+          break;
+        case 'zoom-in':
+          ctx.save();
+          ctx.globalAlpha = 1 - tp;
+          ctx.translate(w / 2, h / 2);
+          const scaleC = 1 + tp * 0.5;
+          ctx.scale(scaleC, scaleC);
+          ctx.translate(-w / 2, -h / 2);
+          drawImageWithFilter(ctx, img, frame.filter, w, h);
+          ctx.restore();
+
+          ctx.save();
+          ctx.globalAlpha = tp;
+          ctx.translate(w / 2, h / 2);
+          const scaleN = 0.5 + tp * 0.5;
+          ctx.scale(scaleN, scaleN);
+          ctx.translate(-w / 2, -h / 2);
+          drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h);
+          ctx.restore();
+          ctx.globalAlpha = 1;
+          break;
+        case 'zoom-out':
+          ctx.save();
+          ctx.globalAlpha = 1 - tp;
+          ctx.translate(w / 2, h / 2);
+          const scaleCOut = 1 - tp * 0.3;
+          ctx.scale(scaleCOut, scaleCOut);
+          ctx.translate(-w / 2, -h / 2);
+          drawImageWithFilter(ctx, img, frame.filter, w, h);
+          ctx.restore();
+
+          ctx.save();
+          ctx.globalAlpha = tp;
+          ctx.translate(w / 2, h / 2);
+          const scaleNOut = 1.5 - tp * 0.5;
+          ctx.scale(scaleNOut, scaleNOut);
+          ctx.translate(-w / 2, -h / 2);
+          drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h);
+          ctx.restore();
+          ctx.globalAlpha = 1;
+          break;
+        default:
+          drawImageWithFilter(ctx, img, frame.filter, w, h);
       }
     } else {
-      drawImageCover(ctx, img, width, height);
+      // Normal draw (with filter + crop if any)
+      if (frame.filter && frame.filter !== 'none') {
+        ctx.filter = getCanvasFilter(frame.filter);
+      }
+
+      if (frame.crop && frame.crop.shape !== 'none') {
+        ctx.save();
+        buildCropPath(ctx, frame.crop, width, height);
+        ctx.clip();
+        drawImageCover(ctx, img, width, height);
+        ctx.restore();
+
+        ctx.filter = 'none';
+
+        if (frame.crop.borderWidth > 0) {
+          ctx.save();
+          buildCropPath(ctx, frame.crop, width, height);
+          ctx.lineWidth = frame.crop.borderWidth;
+          ctx.strokeStyle = frame.crop.borderColor;
+          ctx.stroke();
+          ctx.restore();
+        }
+      } else {
+        drawImageCover(ctx, img, width, height);
+        ctx.filter = 'none';
+      }
     }
 
     ctx.restore(); // End animation transform
@@ -279,6 +466,38 @@ export function useFFmpeg() {
 
     // ── Draw stickers with full animations ──
     renderStickerOverlays(ctx, frame.stickers, progress, width, height, frame.duration, frame.transitionDuration);
+
+    // ── Draw global watermark ──
+    if (watermark && watermark.text) {
+      ctx.save();
+      ctx.font = 'bold 16px sans-serif';
+      const opacity = watermark.opacity ?? 0.4;
+      ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
+      ctx.strokeStyle = `rgba(0, 0, 0, ${opacity})`;
+      ctx.lineWidth = 2;
+
+      const padding = 16;
+      const text = watermark.text;
+      const metrics = ctx.measureText(text);
+      const textWidth = metrics.width;
+      const textHeight = 16;
+
+      let x = padding;
+      let y = padding + textHeight;
+
+      if (watermark.position === 'top-right') {
+        x = width - textWidth - padding;
+      } else if (watermark.position === 'bottom-left') {
+        y = height - padding;
+      } else if (watermark.position === 'bottom-right') {
+        x = width - textWidth - padding;
+        y = height - padding;
+      }
+
+      ctx.strokeText(text, x, y);
+      ctx.fillText(text, x, y);
+      ctx.restore();
+    }
 
     const blob = await canvas.convertToBlob({ type: 'image/png' });
     return blob;
@@ -473,11 +692,16 @@ export function useFFmpeg() {
 
       for (let i = 0; i < frames.length; i++) {
         const frame = frames[i];
+        const nextFrame = frames[(i + 1) % frames.length];
         const effectiveDuration = frame.duration / settings.globalSpeed;
+        
         const hasEffects = frame.animation !== 'none'
+          || (frame.filter !== 'none' && frame.filter !== undefined)
+          || (frame.transition !== 'none' && nextFrame)
           || frame.stickers.length > 0
           || (frame.text?.content)
-          || (frame.crop && frame.crop.shape !== 'none');
+          || (frame.crop && frame.crop.shape !== 'none')
+          || (settings.watermarkText !== undefined && settings.watermarkText !== '');
 
         if (hasEffects) {
           // Generate sub-frames to capture all animations
@@ -485,7 +709,19 @@ export function useFFmpeg() {
           const frameDuration = 1 / fps;
 
           for (let sf = 0; sf < totalSubFrames; sf++) {
-            const blob = await renderFrameToCanvas(frame, outW, outH, sf, totalSubFrames);
+            const blob = await renderFrameToCanvas(
+              frame,
+              outW,
+              outH,
+              sf,
+              totalSubFrames,
+              nextFrame,
+              {
+                text: settings.watermarkText,
+                opacity: settings.watermarkOpacity,
+                position: settings.watermarkPosition
+              }
+            );
             const data = new Uint8Array(await blob.arrayBuffer());
             const fname = `frame_${fileIndex}.png`;
             await ffmpeg.writeFile(fname, data);

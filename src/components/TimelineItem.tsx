@@ -10,6 +10,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   text: 'Texto',
   stickers: 'Stickers',
   crop: 'Recorte',
+  filter: 'Filtro',
 };
 
 interface TimelineItemProps {
@@ -162,6 +163,7 @@ export function TimelineItem({
           </span>
           <div className="flex gap-1">
             {frame.animation !== 'none' && <div className="w-2 h-2 rounded-full bg-cta" title="Animación" />}
+            {frame.filter && frame.filter !== 'none' && <div className="w-2 h-2 rounded-full bg-pink-500" title="Filtro de Color" />}
             {frame.transition !== 'none' && <div className="w-2 h-2 rounded-full bg-purple-500" title="Transición" />}
             {frame.text && <div className="w-2 h-2 rounded-full bg-blue-500" title="Texto" />}
             {frame.stickers.length > 0 && <div className="w-2 h-2 rounded-full bg-yellow-500" title="Stickers" />}

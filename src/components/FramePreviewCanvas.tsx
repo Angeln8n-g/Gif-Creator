@@ -108,9 +108,29 @@ function buildCropPath(ctx: CanvasRenderingContext2D, crop: CropSettings, cw: nu
   }
 }
 
-function applyCropAndDraw(ctx: CanvasRenderingContext2D, img: HTMLImageElement, crop: CropSettings | undefined, cw: number, ch: number) {
+function getCanvasFilter(filter: string | undefined): string {
+  if (!filter || filter === 'none') return 'none';
+  switch (filter) {
+    case 'grayscale': return 'grayscale(100%)';
+    case 'sepia': return 'sepia(100%)';
+    case 'invert': return 'invert(100%)';
+    case 'blur': return 'blur(4px)';
+    case 'warm': return 'contrast(115%) brightness(105%) sepia(30%) saturate(125%)';
+    case 'cool': return 'contrast(100%) brightness(100%) sepia(0%) saturate(80%) hue-rotate(180deg)';
+    case 'vintage': return 'sepia(60%) contrast(80%) brightness(95%) saturate(80%)';
+    case 'cyberpunk': return 'hue-rotate(295deg) saturate(160%) contrast(115%) brightness(95%)';
+    default: return 'none';
+  }
+}
+
+function applyCropAndDraw(ctx: CanvasRenderingContext2D, img: HTMLImageElement, crop: CropSettings | undefined, cw: number, ch: number, filter?: string) {
+  if (filter && filter !== 'none') {
+    ctx.filter = getCanvasFilter(filter);
+  }
+
   if (!crop || crop.shape === 'none') {
     drawImageCover(ctx, img, cw, ch);
+    ctx.filter = 'none';
     return;
   }
   ctx.save();
@@ -118,6 +138,9 @@ function applyCropAndDraw(ctx: CanvasRenderingContext2D, img: HTMLImageElement, 
   ctx.clip();
   drawImageCover(ctx, img, cw, ch);
   ctx.restore();
+
+  ctx.filter = 'none';
+
   if (crop.borderWidth > 0) {
     ctx.save();
     buildCropPath(ctx, crop, cw, ch);
@@ -557,7 +580,7 @@ export function FramePreviewCanvas({
     // Apply frame-level animation + crop
     ctx.save();
     applyAnimation(ctx, frame.animation, progress, w, h);
-    applyCropAndDraw(ctx, img, crop, w, h);
+    applyCropAndDraw(ctx, img, crop, w, h, frame.filter);
     ctx.restore();
 
     // Draw text with animations

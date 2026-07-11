@@ -22,7 +22,15 @@ export type TransitionType =
   | 'slide-up' 
   | 'slide-down' 
   | 'wipe-left' 
-  | 'wipe-right';
+  | 'wipe-right'
+  | 'fade-black'
+  | 'fade-white'
+  | 'zoom-in'
+  | 'zoom-out'
+  | 'wipe-up'
+  | 'wipe-down';
+
+export type FilterType = 'none' | 'grayscale' | 'sepia' | 'invert' | 'vintage' | 'cyberpunk' | 'warm' | 'cool' | 'blur';
 
 export type TextAnimation = 
   | 'none' 
@@ -90,13 +98,13 @@ export interface CropSettings {
   freeformPoints?: { x: number; y: number }[]; // percentage coordinates (0-100)
 }
 
-// ─── Frame Image ───
 export interface FrameImage {
   id: string;
   file: File;
   previewUrl: string;
   duration: number; // seconds
   animation: AnimationType;
+  filter?: FilterType;
   transition: TransitionType;
   transitionDuration: number; // seconds (portion of frame duration used for transition)
   text?: TextOverlay;
@@ -128,15 +136,18 @@ export interface RenderSettings {
   gifDither?: 'floyd_steinberg' | 'bayer' | 'none';
   webpQuality?: number;
   mp4Quality?: number;
+  watermarkText?: string;
+  watermarkOpacity?: number; // 0.0 to 1.0
+  watermarkPosition?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 }
 
 // ─── Effects Copy-Paste Types ───
-export type EffectCategory = 'animation' | 'transition' | 'text' | 'stickers' | 'crop';
+export type EffectCategory = 'animation' | 'transition' | 'text' | 'stickers' | 'crop' | 'filter';
 
 export interface EffectClipboard {
   sourceFrameId: string;
   /** Snapshot of the source frame's effects at the moment of copy */
-  sourceEffects: Pick<FrameImage, 'animation' | 'transition' | 'transitionDuration' | 'text' | 'stickers' | 'crop'>;
+  sourceEffects: Pick<FrameImage, 'animation' | 'transition' | 'transitionDuration' | 'text' | 'stickers' | 'crop' | 'filter'>;
 }
 
 export type EffectMask = Set<EffectCategory>;

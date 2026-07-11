@@ -21,6 +21,8 @@ export function hasEffect(frame: FrameImage, cat: EffectCategory): boolean {
       return frame.stickers.length > 0;
     case 'crop':
       return !!(frame.crop && frame.crop.shape !== 'none');
+    case 'filter':
+      return !!(frame.filter && frame.filter !== 'none');
   }
 }
 
@@ -57,6 +59,10 @@ export function applyEffectMask(
 
   if (mask.has('crop')) {
     updated.crop = source.crop ? { ...source.crop } : undefined;
+  }
+
+  if (mask.has('filter')) {
+    updated.filter = source.filter;
   }
 
   return updated;

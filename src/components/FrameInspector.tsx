@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { FrameImage, AnimationType, TransitionType, TextOverlay, StickerOverlay, CropSettings } from '../types';
+import type { FrameImage, AnimationType, TransitionType, TextOverlay, StickerOverlay, CropSettings, FilterType } from '../types';
 import { AnimationPicker } from './AnimationPicker';
 import { TransitionPicker } from './TransitionPicker';
 import { TextEditor } from './TextEditor';
@@ -20,6 +20,7 @@ interface FrameInspectorProps {
   onStickersChange: (id: string, stickers: StickerOverlay[]) => void;
   onCropChange: (id: string, crop: CropSettings | undefined) => void;
   onSfxChange: (id: string, sfx: FrameImage['sfx'] | undefined) => void;
+  onFilterChange: (id: string, filter: FilterType) => void;
 }
 
 type ModalType = 'crop' | 'text' | 'stickers' | 'sfx' | null;
@@ -35,6 +36,7 @@ export function FrameInspector({
   onStickersChange,
   onCropChange,
   onSfxChange,
+  onFilterChange,
 }: FrameInspectorProps) {
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [sfxDuration, setSfxDuration] = useState<number>(10);
@@ -125,6 +127,39 @@ export function FrameInspector({
                 onChange={(transition) => onTransitionChange(frame.id, transition)}
                 onDurationChange={(duration) => onTransitionDurationChange(frame.id, duration)}
               />
+            </div>
+
+            {/* Color Filter */}
+            <div className="md:col-span-2 pt-4 border-t border-dark-border/40">
+              <h4 className="text-sm font-semibold text-light mb-3 flex items-center space-x-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                <span>Filtro de Color</span>
+              </h4>
+              <div className="grid grid-cols-3 gap-1.5">
+                {[
+                  { value: 'none', label: 'Sin Filtro' },
+                  { value: 'grayscale', label: 'B&N' },
+                  { value: 'sepia', label: 'Sepia' },
+                  { value: 'invert', label: 'Invertido' },
+                  { value: 'warm', label: 'Cálido' },
+                  { value: 'cool', label: 'Frío' },
+                  { value: 'vintage', label: 'Vintage' },
+                  { value: 'cyberpunk', label: 'Cyberpunk' },
+                  { value: 'blur', label: 'Desenfocar' },
+                ].map((f) => (
+                  <button
+                    key={f.value}
+                    onClick={() => onFilterChange(frame.id, f.value as FilterType)}
+                    className={`px-2 py-1.5 rounded-lg text-center text-[10px] font-semibold border transition-all duration-200 cursor-pointer
+                      ${(frame.filter || 'none') === f.value
+                        ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-[0_0_8px_rgba(16,185,129,0.15)]'
+                        : 'bg-dark-bg border-dark-border/60 text-gray-400 hover:text-gray-200 hover:border-gray-500'
+                      }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 

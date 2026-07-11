@@ -152,6 +152,9 @@ export function CanvasWorkspace({
           onPlayStateChange={onPlayStateChange}
           audioTrack={audioTrack}
           audioVolume={audioVolume}
+          watermarkText={settings.watermarkText}
+          watermarkOpacity={settings.watermarkOpacity}
+          watermarkPosition={settings.watermarkPosition}
         />
       )}
 

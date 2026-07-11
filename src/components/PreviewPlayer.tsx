@@ -195,6 +195,21 @@ function buildCropPath(
   }
 }
 
+export function getCanvasFilter(filter: string | undefined): string {
+  if (!filter || filter === 'none') return 'none';
+  switch (filter) {
+    case 'grayscale': return 'grayscale(100%)';
+    case 'sepia': return 'sepia(100%)';
+    case 'invert': return 'invert(100%)';
+    case 'blur': return 'blur(4px)';
+    case 'warm': return 'contrast(115%) brightness(105%) sepia(30%) saturate(125%)';
+    case 'cool': return 'contrast(100%) brightness(100%) sepia(0%) saturate(80%) hue-rotate(180deg)';
+    case 'vintage': return 'sepia(60%) contrast(80%) brightness(95%) saturate(80%)';
+    case 'cyberpunk': return 'hue-rotate(295deg) saturate(160%) contrast(115%) brightness(95%)';
+    default: return 'none';
+  }
+}
+
 // Apply crop clipping and draw border around the clipped area
 function applyCropAndDraw(
   ctx: CanvasRenderingContext2D,
@@ -204,8 +219,14 @@ function applyCropAndDraw(
   ch: number
 ) {
   const crop = frame.crop;
+
+  if (frame.filter && frame.filter !== 'none') {
+    ctx.filter = getCanvasFilter(frame.filter);
+  }
+
   if (!crop || crop.shape === 'none') {
     drawImageCover(ctx, img, cw, ch);
+    ctx.filter = 'none';
     return;
   }
 
@@ -215,6 +236,8 @@ function applyCropAndDraw(
   ctx.clip();
   drawImageCover(ctx, img, cw, ch);
   ctx.restore();
+
+  ctx.filter = 'none';
 
   // Draw border
   if (crop.borderWidth > 0) {
@@ -235,6 +258,9 @@ interface PreviewPlayerProps {
   onPlayStateChange?: (playing: boolean) => void;
   audioTrack?: File | null;
   audioVolume?: number;
+  watermarkText?: string;
+  watermarkOpacity?: number;
+  watermarkPosition?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 }
 
 export interface PreviewPlayerRef {
@@ -252,7 +278,10 @@ export const PreviewPlayer = forwardRef<PreviewPlayerRef, PreviewPlayerProps>(({
   isPlaying: externalIsPlaying,
   onPlayStateChange,
   audioTrack,
-  audioVolume = 1
+  audioVolume = 1,
+  watermarkText,
+  watermarkOpacity,
+  watermarkPosition
 }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [internalIsPlaying, setInternalIsPlaying] = useState(false);
@@ -498,6 +527,7 @@ export const PreviewPlayer = forwardRef<PreviewPlayerRef, PreviewPlayerProps>(({
     currentImg: HTMLImageElement,
     nextImg: HTMLImageElement | null,
     frame: FrameImage,
+    nextFrameFilter: string | undefined,
     progress: number,
     w: number,
     h: number
@@ -506,6 +536,14 @@ export const PreviewPlayer = forwardRef<PreviewPlayerRef, PreviewPlayerProps>(({
       return false; // No transition active
     }
 
+    const drawImageWithFilter = (c: CanvasRenderingContext2D, image: HTMLImageElement, fStr: string | undefined, cw: number, ch: number) => {
+      if (fStr && fStr !== 'none') {
+        c.filter = getCanvasFilter(fStr);
+      }
+      drawImageCover(c, image, cw, ch);
+      c.filter = 'none';
+    };
+
     // Compute transition progress: 0..1 within the transition window
     const transWindow = frame.transitionDuration / frame.duration;
     const tp = easeInOut((progress - (1 - transWindow)) / transWindow);
@@ -513,66 +551,154 @@ export const PreviewPlayer = forwardRef<PreviewPlayerRef, PreviewPlayerProps>(({
     switch (frame.transition) {
       case 'crossfade':
         ctx.globalAlpha = 1 - tp;
-        drawImageCover(ctx, currentImg, w, h);
+        drawImageWithFilter(ctx, currentImg, frame.filter, w, h);
         ctx.globalAlpha = tp;
-        drawImageCover(ctx, nextImg, w, h);
+        drawImageWithFilter(ctx, nextImg, nextFrameFilter, w, h);
         ctx.globalAlpha = 1;
         return true;
 
       case 'slide-left':
         ctx.save();
         ctx.translate(-tp * w, 0);
-        drawImageCover(ctx, currentImg, w, h);
+        drawImageWithFilter(ctx, currentImg, frame.filter, w, h);
         ctx.translate(w, 0);
-        drawImageCover(ctx, nextImg, w, h);
+        drawImageWithFilter(ctx, nextImg, nextFrameFilter, w, h);
         ctx.restore();
         return true;
 
       case 'slide-right':
         ctx.save();
         ctx.translate(tp * w, 0);
-        drawImageCover(ctx, currentImg, w, h);
+        drawImageWithFilter(ctx, currentImg, frame.filter, w, h);
         ctx.translate(-w, 0);
-        drawImageCover(ctx, nextImg, w, h);
+        drawImageWithFilter(ctx, nextImg, nextFrameFilter, w, h);
         ctx.restore();
         return true;
 
       case 'slide-up':
         ctx.save();
         ctx.translate(0, -tp * h);
-        drawImageCover(ctx, currentImg, w, h);
+        drawImageWithFilter(ctx, currentImg, frame.filter, w, h);
         ctx.translate(0, h);
-        drawImageCover(ctx, nextImg, w, h);
+        drawImageWithFilter(ctx, nextImg, nextFrameFilter, w, h);
         ctx.restore();
         return true;
 
       case 'slide-down':
         ctx.save();
         ctx.translate(0, tp * h);
-        drawImageCover(ctx, currentImg, w, h);
+        drawImageWithFilter(ctx, currentImg, frame.filter, w, h);
         ctx.translate(0, -h);
-        drawImageCover(ctx, nextImg, w, h);
+        drawImageWithFilter(ctx, nextImg, nextFrameFilter, w, h);
         ctx.restore();
         return true;
 
       case 'wipe-left':
-        drawImageCover(ctx, currentImg, w, h);
+        drawImageWithFilter(ctx, currentImg, frame.filter, w, h);
         ctx.save();
         ctx.beginPath();
         ctx.rect(0, 0, tp * w, h);
         ctx.clip();
-        drawImageCover(ctx, nextImg, w, h);
+        drawImageWithFilter(ctx, nextImg, nextFrameFilter, w, h);
         ctx.restore();
         return true;
 
       case 'wipe-right':
-        drawImageCover(ctx, currentImg, w, h);
+        drawImageWithFilter(ctx, currentImg, frame.filter, w, h);
         ctx.save();
         ctx.beginPath();
         ctx.rect(w - tp * w, 0, tp * w, h);
         ctx.clip();
-        drawImageCover(ctx, nextImg, w, h);
+        drawImageWithFilter(ctx, nextImg, nextFrameFilter, w, h);
         ctx.restore();
+        return true;
+
+      case 'wipe-up':
+        drawImageWithFilter(ctx, currentImg, frame.filter, w, h);
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, h - tp * h, w, tp * h);
+        ctx.clip();
+        drawImageWithFilter(ctx, nextImg, nextFrameFilter, w, h);
+        ctx.restore();
+        return true;
+
+      case 'wipe-down':
+        drawImageWithFilter(ctx, currentImg, frame.filter, w, h);
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 0, w, tp * h);
+        ctx.clip();
+        drawImageWithFilter(ctx, nextImg, nextFrameFilter, w, h);
+        ctx.restore();
+        return true;
+
+      case 'fade-black':
+        if (tp < 0.5) {
+          ctx.globalAlpha = 1 - tp * 2;
+          drawImageWithFilter(ctx, currentImg, frame.filter, w, h);
+        } else {
+          ctx.globalAlpha = (tp - 0.5) * 2;
+          drawImageWithFilter(ctx, nextImg, nextFrameFilter, w, h);
+        }
+        ctx.globalAlpha = 1;
+        return true;
+
+      case 'fade-white':
+        if (tp < 0.5) {
+          ctx.globalAlpha = 1 - tp * 2;
+          drawImageWithFilter(ctx, currentImg, frame.filter, w, h);
+          ctx.fillStyle = `rgba(255, 255, 255, ${tp * 2})`;
+          ctx.fillRect(0, 0, w, h);
+        } else {
+          ctx.globalAlpha = (tp - 0.5) * 2;
+          drawImageWithFilter(ctx, nextImg, nextFrameFilter, w, h);
+          ctx.fillStyle = `rgba(255, 255, 255, ${(1 - tp) * 2})`;
+          ctx.fillRect(0, 0, w, h);
+        }
+        ctx.globalAlpha = 1;
+        return true;
+
+      case 'zoom-in':
+        ctx.save();
+        ctx.globalAlpha = 1 - tp;
+        ctx.translate(w / 2, h / 2);
+        const scaleCurrent = 1 + tp * 0.5;
+        ctx.scale(scaleCurrent, scaleCurrent);
+        ctx.translate(-w / 2, -h / 2);
+        drawImageWithFilter(ctx, currentImg, frame.filter, w, h);
+        ctx.restore();
+
+        ctx.save();
+        ctx.globalAlpha = tp;
+        ctx.translate(w / 2, h / 2);
+        const scaleNext = 0.5 + tp * 0.5;
+        ctx.scale(scaleNext, scaleNext);
+        ctx.translate(-w / 2, -h / 2);
+        drawImageWithFilter(ctx, nextImg, nextFrameFilter, w, h);
+        ctx.restore();
+        ctx.globalAlpha = 1;
+        return true;
+
+      case 'zoom-out':
+        ctx.save();
+        ctx.globalAlpha = 1 - tp;
+        ctx.translate(w / 2, h / 2);
+        const scaleCurrentOut = 1 - tp * 0.3;
+        ctx.scale(scaleCurrentOut, scaleCurrentOut);
+        ctx.translate(-w / 2, -h / 2);
+        drawImageWithFilter(ctx, currentImg, frame.filter, w, h);
+        ctx.restore();
+
+        ctx.save();
+        ctx.globalAlpha = tp;
+        ctx.translate(w / 2, h / 2);
+        const scaleNextOut = 1.5 - tp * 0.5;
+        ctx.scale(scaleNextOut, scaleNextOut);
+        ctx.translate(-w / 2, -h / 2);
+        drawImageWithFilter(ctx, nextImg, nextFrameFilter, w, h);
+        ctx.restore();
+        ctx.globalAlpha = 1;
         return true;
 
       default:
@@ -818,7 +944,7 @@ export const PreviewPlayer = forwardRef<PreviewPlayerRef, PreviewPlayerProps>(({
       const nextImg = nextFrame ? imagesRef.current.get(nextFrame.id) || null : null;
 
       ctx.save();
-      const transitionApplied = applyTransition(ctx, img, nextImg, frame, progress, w, h);
+      const transitionApplied = applyTransition(ctx, img, nextImg, frame, nextFrame?.filter, progress, w, h);
       ctx.restore();
 
       if (!transitionApplied) {
@@ -832,6 +958,38 @@ export const PreviewPlayer = forwardRef<PreviewPlayerRef, PreviewPlayerProps>(({
       // Draw overlays
       drawText(ctx, frame, progress, w, h);
       drawStickers(ctx, frame, progress, w, h);
+
+      // Draw global watermark
+      if (watermarkText) {
+        ctx.save();
+        ctx.font = 'bold 16px sans-serif';
+        const opacity = watermarkOpacity ?? 0.4;
+        ctx.fillStyle = `rgba(255, 255, 255, ${opacity})`;
+        ctx.strokeStyle = `rgba(0, 0, 0, ${opacity})`;
+        ctx.lineWidth = 2;
+
+        const padding = 16;
+        const text = watermarkText;
+        const metrics = ctx.measureText(text);
+        const textWidth = metrics.width;
+        const textHeight = 16;
+
+        let x = padding;
+        let y = padding + textHeight;
+
+        if (watermarkPosition === 'top-right') {
+          x = w - textWidth - padding;
+        } else if (watermarkPosition === 'bottom-left') {
+          y = h - padding;
+        } else if (watermarkPosition === 'bottom-right') {
+          x = w - textWidth - padding;
+          y = h - padding;
+        }
+
+        ctx.strokeText(text, x, y);
+        ctx.fillText(text, x, y);
+        ctx.restore();
+      }
 
       animRef.current = requestAnimationFrame(renderLoop);
     };

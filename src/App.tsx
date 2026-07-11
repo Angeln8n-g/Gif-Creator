@@ -10,6 +10,7 @@ import { useIsPanelOpen } from './hooks/useIsPanelOpen';
 import { useHistoryState } from './hooks/useHistoryState';
 import { Logo } from './components/Logo';
 import { Undo2, Redo2 } from 'lucide-react';
+import { saveProject, loadProject, clearProject, type SavedProject } from './services/indexedDb';
 
 function App() {
   const playerRef = useRef<PreviewPlayerRef>(null);
@@ -34,10 +35,87 @@ function App() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [audioTrack, setAudioTrack] = useState<File | null>(null);
   const [audioVolume, setAudioVolume] = useState<number>(1.0);
+  const [restorableProject, setRestorableProject] = useState<SavedProject | null>(null);
 
   const [isPanelOpen, togglePanel] = useIsPanelOpen();
 
   const { loaded, loadProgress, rendering, progress, renderMedia } = useFFmpeg();
+
+  // Check for saved project on mount
+  useEffect(() => {
+    async function checkSaved() {
+      const saved = await loadProject();
+      if (saved && saved.frames && saved.frames.length > 0) {
+        setRestorableProject(saved);
+      }
+    }
+    checkSaved();
+  }, []);
+
+  const handleRestoreSession = () => {
+    if (!restorableProject) return;
+    
+    // Reconstruct Blob URLs
+    const restoredFrames: FrameImage[] = restorableProject.frames.map(f => {
+      const previewUrl = URL.createObjectURL(f.file);
+      const sfx = f.sfx ? {
+        name: f.sfx.name,
+        file: f.sfx.file,
+        volume: f.sfx.volume,
+        start: f.sfx.start,
+        end: f.sfx.end,
+        url: URL.createObjectURL(f.sfx.file)
+      } : undefined;
+      
+      return {
+        id: f.id,
+        file: f.file,
+        previewUrl,
+        duration: f.duration,
+        animation: f.animation,
+        filter: f.filter,
+        transition: f.transition,
+        transitionDuration: f.transitionDuration,
+        text: f.text,
+        stickers: f.stickers,
+        crop: f.crop,
+        sfx
+      };
+    });
+
+    setFrames(restoredFrames, true); // skipHistory = true
+    setSettings(restorableProject.settings);
+    setAudioTrack(restorableProject.audioTrack);
+    setAudioVolume(restorableProject.audioVolume);
+    setRestorableProject(null);
+  };
+
+  const handleDiscardSession = async () => {
+    await clearProject();
+    setRestorableProject(null);
+  };
+
+  // Auto-save to IndexedDB with debounce
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      try {
+        if (frames.length === 0) {
+          await clearProject();
+        } else {
+          await saveProject({
+            frames,
+            settings,
+            audioTrack,
+            audioVolume
+          });
+        }
+      } catch (err) {
+        console.error('Failed to auto-save project:', err);
+      }
+    }, 1000); // 1s debounce
+
+    return () => clearTimeout(timer);
+  }, [frames, settings, audioTrack, audioVolume]);
   const { extractGifFrames } = useGifExtractor();
   const { isRemoving, progress: bgProgress, downloadProgress: bgDownloadProgress, removeBackgroundFromFrames } = useBackgroundRemover();
 
@@ -139,6 +217,34 @@ function App() {
           </button>
         </div>
       </header>
+
+      {restorableProject && (
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-xl px-4 animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="bg-dark-card/90 border border-cta/30 backdrop-blur-md rounded-2xl p-4 flex items-center justify-between shadow-2xl shadow-black/40 gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="text-xl">📝</span>
+              <div className="min-w-0">
+                <h4 className="text-xs font-semibold text-white">Proyecto no guardado</h4>
+                <p className="text-[10px] text-gray-400 truncate">Se detectaron {restorableProject.frames.length} fotogramas de una sesión anterior.</p>
+              </div>
+            </div>
+            <div className="flex gap-2 shrink-0">
+              <button
+                onClick={handleDiscardSession}
+                className="px-3 py-1.5 bg-dark-bg hover:bg-red-500/10 border border-dark-border hover:border-red-500/20 text-gray-400 hover:text-red-400 rounded-lg text-[10px] font-semibold transition-colors cursor-pointer"
+              >
+                Descartar
+              </button>
+              <button
+                onClick={handleRestoreSession}
+                className="px-3 py-1.5 bg-cta hover:bg-cta-hover text-white rounded-lg text-[10px] font-semibold transition-all shadow-[0_0_10px_rgba(225,29,72,0.3)] cursor-pointer"
+              >
+                Restaurar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Content */}
       <div className="flex-1 flex gap-8">

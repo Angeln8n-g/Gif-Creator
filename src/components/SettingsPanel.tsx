@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { RenderSettings, Resolution, OptimizationLevel, FrameImage } from '../types';
-import { Settings, Download, Video, Image as ImageIcon, Loader2, Gauge, Zap, Music, Trash2 } from 'lucide-react';
+import { Settings, Download, Video, Image as ImageIcon, Loader2, Gauge, Zap, Music, Trash2, Copyright } from 'lucide-react';
 import { Uploader } from './Uploader';
 
 interface SettingsPanelProps {
@@ -355,6 +355,60 @@ export function SettingsPanel({
             )}
           </div>
         )}
+
+        {/* Marca de agua (Watermark) */}
+        <div className="pt-4 border-t border-dark-border/40 mt-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Copyright size={16} className="text-gray-300" />
+            <label className="text-sm font-medium text-gray-300">Marca de Agua Global</label>
+          </div>
+          <div className="space-y-3 bg-dark-bg/40 border border-dark-border/60 rounded-xl p-3">
+            <div className="space-y-1.5">
+              <label className="block text-[10px] text-gray-400">Texto de la marca</label>
+              <input
+                type="text"
+                placeholder="Ej. @mi_usuario, Reservados todos los derechos"
+                value={settings.watermarkText || ''}
+                onChange={(e) => setSettings(s => ({ ...s, watermarkText: e.target.value || undefined }))}
+                className="w-full bg-dark-bg border border-dark-border rounded-lg px-2.5 py-1.5 text-xs text-light placeholder-gray-600 focus:outline-none focus:border-cta"
+              />
+            </div>
+            
+            {settings.watermarkText && (
+              <>
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-[10px] text-gray-400">
+                    <span>Opacidad</span>
+                    <span className="font-mono text-cta">{Math.round((settings.watermarkOpacity ?? 0.4) * 100)}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.1"
+                    max="1.0"
+                    step="0.05"
+                    value={settings.watermarkOpacity ?? 0.4}
+                    onChange={(e) => setSettings(s => ({ ...s, watermarkOpacity: parseFloat(e.target.value) }))}
+                    className="w-full h-1 bg-dark-border rounded-lg appearance-none cursor-pointer accent-cta"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] text-gray-400">Posición en pantalla</label>
+                  <select
+                    value={settings.watermarkPosition || 'bottom-right'}
+                    onChange={(e) => setSettings(s => ({ ...s, watermarkPosition: e.target.value as any }))}
+                    className="w-full bg-dark-bg border border-dark-border rounded-lg px-2 py-1.5 text-xs text-light focus:outline-none focus:border-cta cursor-pointer"
+                  >
+                    <option value="bottom-right">Abajo a la derecha</option>
+                    <option value="bottom-left">Abajo a la izquierda</option>
+                    <option value="top-right">Arriba a la derecha</option>
+                    <option value="top-left">Arriba a la izquierda</option>
+                  </select>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
 
         {/* Real-time File Size Estimator */}
         {frames.length > 0 && (

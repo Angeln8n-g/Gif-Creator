@@ -1,4 +1,4 @@
-import { Clapperboard, ArrowRightLeft, Type, Smile, Crop, CheckSquare, Square, CheckCheck, X, Copy } from 'lucide-react';
+import { Clapperboard, ArrowRightLeft, Type, Smile, Crop, CheckSquare, Square, CheckCheck, X, Copy, Palette } from 'lucide-react';
 import type { EffectCategory, EffectMask, FrameImage } from '../types';
 import { hasEffect } from '../utils/effectHelpers';
 
@@ -72,6 +72,16 @@ const CATEGORIES: CategoryConfig[] = [
     activeColor: 'text-emerald-400',
     activeBg: 'bg-emerald-500/10',
     activeBorder: 'border-emerald-500/30',
+    inactiveIcon: 'text-gray-500',
+  },
+  {
+    id: 'filter',
+    label: 'Filtro',
+    description: 'Filtro de color',
+    icon: <Palette size={16} />,
+    activeColor: 'text-pink-400',
+    activeBg: 'bg-pink-500/10',
+    activeBorder: 'border-pink-500/30',
     inactiveIcon: 'text-gray-500',
   },
 ];

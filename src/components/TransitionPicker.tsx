@@ -1,7 +1,8 @@
 import type { TransitionType } from '../types';
 import { 
   Ban, Blend, ArrowRightFromLine, ArrowLeftFromLine, 
-  ArrowUpFromLine, ArrowDownFromLine, PanelLeft, PanelRight 
+  ArrowUpFromLine, ArrowDownFromLine, PanelLeft, PanelRight,
+  Moon, Sun, ZoomIn, ZoomOut, PanelTop, PanelBottom
 } from 'lucide-react';
 
 const transitions: { value: TransitionType; label: string; icon: React.ReactNode }[] = [
@@ -13,6 +14,12 @@ const transitions: { value: TransitionType; label: string; icon: React.ReactNode
   { value: 'slide-down', label: 'Slide Abajo', icon: <ArrowDownFromLine size={14} /> },
   { value: 'wipe-left', label: 'Wipe Izq.', icon: <PanelLeft size={14} /> },
   { value: 'wipe-right', label: 'Wipe Der.', icon: <PanelRight size={14} /> },
+  { value: 'wipe-up', label: 'Wipe Arriba', icon: <PanelTop size={14} /> },
+  { value: 'wipe-down', label: 'Wipe Abajo', icon: <PanelBottom size={14} /> },
+  { value: 'fade-black', label: 'Fund. Negro', icon: <Moon size={14} /> },
+  { value: 'fade-white', label: 'Fund. Blanco', icon: <Sun size={14} /> },
+  { value: 'zoom-in', label: 'Zoom In', icon: <ZoomIn size={14} /> },
+  { value: 'zoom-out', label: 'Zoom Out', icon: <ZoomOut size={14} /> },
 ];
 
 interface TransitionPickerProps {

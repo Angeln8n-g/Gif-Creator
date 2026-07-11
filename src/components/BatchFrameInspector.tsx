@@ -1,4 +1,4 @@
-import type { FrameImage, AnimationType, TransitionType } from '../types';
+import type { FrameImage, AnimationType, TransitionType, FilterType } from '../types';
 import { AnimationPicker } from './AnimationPicker';
 import { TransitionPicker } from './TransitionPicker';
 import { Trash2 } from 'lucide-react';
@@ -10,6 +10,7 @@ interface BatchFrameInspectorProps {
   onAnimationChangeSelected: (animation: AnimationType) => void;
   onTransitionChangeSelected: (transition: TransitionType) => void;
   onTransitionDurationChangeSelected: (duration: number) => void;
+  onFilterChangeSelected: (filter: FilterType) => void;
 }
 
 export function BatchFrameInspector({
@@ -19,6 +20,7 @@ export function BatchFrameInspector({
   onAnimationChangeSelected,
   onTransitionChangeSelected,
   onTransitionDurationChangeSelected,
+  onFilterChangeSelected,
 }: BatchFrameInspectorProps) {
   
   if (selectedFrames.length === 0) return null;
@@ -35,6 +37,9 @@ export function BatchFrameInspector({
 
   const allTransitionDurationsMatch = selectedFrames.every(f => f.transitionDuration === selectedFrames[0].transitionDuration);
   const defaultTransitionDuration = allTransitionDurationsMatch ? selectedFrames[0].transitionDuration : 0.5;
+
+  const allFiltersMatch = selectedFrames.every(f => (f.filter || 'none') === (selectedFrames[0].filter || 'none'));
+  const defaultFilter = allFiltersMatch ? (selectedFrames[0].filter || 'none') : 'none';
 
   return (
     <div className="bg-dark-card border border-dark-border rounded-xl flex flex-col md:flex-row overflow-hidden shadow-lg shadow-black/20">
@@ -125,6 +130,42 @@ export function BatchFrameInspector({
           />
           {!allTransitionsMatch && (
             <p className="text-[10px] text-gray-500">Los fotogramas seleccionados tienen transiciones distintas. Elige una para unificar.</p>
+          )}
+        </div>
+
+        {/* Color Filter */}
+        <div className="md:col-span-2 space-y-4 pt-4 border-t border-dark-border/40">
+          <h4 className="text-sm font-semibold text-light mb-1 flex items-center space-x-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+            <span>Filtro de Color (Lote)</span>
+          </h4>
+          <div className="grid grid-cols-3 md:grid-cols-5 gap-1.5">
+            {[
+              { value: 'none', label: 'Sin Filtro' },
+              { value: 'grayscale', label: 'B&N' },
+              { value: 'sepia', label: 'Sepia' },
+              { value: 'invert', label: 'Invertido' },
+              { value: 'warm', label: 'Cálido' },
+              { value: 'cool', label: 'Frío' },
+              { value: 'vintage', label: 'Vintage' },
+              { value: 'cyberpunk', label: 'Cyberpunk' },
+              { value: 'blur', label: 'Desenfocar' },
+            ].map((f) => (
+              <button
+                key={f.value}
+                onClick={() => onFilterChangeSelected(f.value as FilterType)}
+                className={`px-2 py-1.5 rounded-lg text-center text-[10px] font-semibold border transition-all duration-200 cursor-pointer
+                  ${defaultFilter === f.value
+                    ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40 shadow-[0_0_8px_rgba(16,185,129,0.15)]'
+                    : 'bg-dark-bg border-dark-border/60 text-gray-400 hover:text-gray-200 hover:border-gray-500'
+                  }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+          {!allFiltersMatch && (
+            <p className="text-[10px] text-gray-500">Los fotogramas seleccionados tienen filtros distintos. Elige uno para unificar.</p>
           )}
         </div>
 

@@ -24,6 +24,7 @@ import type {
   EffectClipboard,
   EffectMask,
   EffectCategory,
+  FilterType,
 } from '../types';
 import { TimelineItem } from './TimelineItem';
 import { FrameInspector } from './FrameInspector';
@@ -144,6 +145,12 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef }: Ti
     );
   }, [selectedIds, setFrames]);
 
+  const handleFilterChangeSelected = useCallback((filter: FilterType) => {
+    setFrames((items) =>
+      items.map((f) => (selectedIds.has(f.id) ? { ...f, filter } : f))
+    );
+  }, [selectedIds, setFrames]);
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -192,6 +199,12 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef }: Ti
   const handleTransitionDurationChange = (id: string, duration: number) => {
     setFrames((items) =>
       items.map((i) => (i.id === id ? { ...i, transitionDuration: duration } : i))
+    );
+  };
+
+  const handleFilterChange = (id: string, filter: FilterType) => {
+    setFrames((items) =>
+      items.map((i) => (i.id === id ? { ...i, filter } : i))
     );
   };
 
@@ -586,6 +599,7 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef }: Ti
             onStickersChange={handleStickersChange}
             onCropChange={handleCropChange}
             onSfxChange={handleSfxChange}
+            onFilterChange={handleFilterChange}
           />
         </div>
       )}
@@ -599,6 +613,7 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef }: Ti
             onAnimationChangeSelected={handleAnimationChangeSelected}
             onTransitionChangeSelected={handleTransitionChangeSelected}
             onTransitionDurationChangeSelected={handleTransitionDurationChangeSelected}
+            onFilterChangeSelected={handleFilterChangeSelected}
           />
         </div>
       )}
