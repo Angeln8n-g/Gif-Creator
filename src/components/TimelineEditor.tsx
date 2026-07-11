@@ -25,6 +25,7 @@ import type {
   EffectMask,
   EffectCategory,
   FilterType,
+  ImageAdjustments,
 } from '../types';
 import { TimelineItem } from './TimelineItem';
 import { FrameInspector } from './FrameInspector';
@@ -33,7 +34,7 @@ import { CopyEffectsMenu } from './CopyEffectsMenu';
 import { EffectsStatusBanner } from './EffectsStatusBanner';
 import { PasteNotification } from './PasteNotification';
 import { applyEffectMask } from '../utils/effectHelpers';
-import { Layers, Clock } from 'lucide-react';
+import { Layers, Clock, ArrowRightLeft, Repeat } from 'lucide-react';
 import type { PreviewPlayerRef } from './PreviewPlayer';
 
 interface TimelineEditorProps {
@@ -41,9 +42,11 @@ interface TimelineEditorProps {
   setFrames: React.Dispatch<React.SetStateAction<FrameImage[]>>;
   currentTime?: number;
   playerRef?: React.RefObject<PreviewPlayerRef | null>;
+  onReverseTimeline?: () => void;
+  onBoomerangTimeline?: () => void;
 }
 
-export function TimelineEditor({ frames, setFrames, currentTime, playerRef }: TimelineEditorProps) {
+export function TimelineEditor({ frames, setFrames, currentTime, playerRef, onReverseTimeline, onBoomerangTimeline }: TimelineEditorProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
   const [isScrubbing, setIsScrubbing] = useState(false);
@@ -151,6 +154,17 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef }: Ti
     );
   }, [selectedIds, setFrames]);
 
+  const handleAdjustmentsChangeSelected = useCallback((updateFn: (prev: ImageAdjustments | undefined) => ImageAdjustments | undefined) => {
+    setFrames((items) =>
+      items.map((f) => {
+        if (selectedIds.has(f.id)) {
+          return { ...f, adjustments: updateFn(f.adjustments) };
+        }
+        return f;
+      })
+    );
+  }, [selectedIds, setFrames]);
+
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: {
@@ -205,6 +219,12 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef }: Ti
   const handleFilterChange = (id: string, filter: FilterType) => {
     setFrames((items) =>
       items.map((i) => (i.id === id ? { ...i, filter } : i))
+    );
+  };
+
+  const handleAdjustmentsChange = (id: string, adjustments: ImageAdjustments | undefined) => {
+    setFrames((items) =>
+      items.map((i) => (i.id === id ? { ...i, adjustments } : i))
     );
   };
 
@@ -500,6 +520,28 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef }: Ti
           <span className="text-xs px-2 py-0.5 bg-dark-bg rounded-md ml-auto">
             Total: {frames.reduce((acc, f) => acc + f.duration, 0).toFixed(1)}s
           </span>
+
+          {/* Reverse & Boomerang buttons */}
+          {frames.length >= 2 && (
+            <div className="flex items-center space-x-1.5 ml-2">
+              <button
+                onClick={onReverseTimeline}
+                title="Invertir Timeline"
+                className="flex items-center space-x-1 px-2 py-1 text-[10px] font-medium text-gray-400 hover:text-amber-400 bg-dark-bg hover:bg-dark-bg/80 border border-dark-border hover:border-amber-500/30 rounded-lg transition-all cursor-pointer"
+              >
+                <ArrowRightLeft size={12} />
+                <span>Invertir</span>
+              </button>
+              <button
+                onClick={onBoomerangTimeline}
+                title="Efecto Bumerán (Ping-Pong)"
+                className="flex items-center space-x-1 px-2 py-1 text-[10px] font-medium text-gray-400 hover:text-amber-400 bg-dark-bg hover:bg-dark-bg/80 border border-dark-border hover:border-amber-500/30 rounded-lg transition-all cursor-pointer"
+              >
+                <Repeat size={12} />
+                <span>Bumerán</span>
+              </button>
+            </div>
+          )}
         </div>
 
         <div 
@@ -600,6 +642,7 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef }: Ti
             onCropChange={handleCropChange}
             onSfxChange={handleSfxChange}
             onFilterChange={handleFilterChange}
+            onAdjustmentsChange={handleAdjustmentsChange}
           />
         </div>
       )}
@@ -614,6 +657,7 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef }: Ti
             onTransitionChangeSelected={handleTransitionChangeSelected}
             onTransitionDurationChangeSelected={handleTransitionDurationChangeSelected}
             onFilterChangeSelected={handleFilterChangeSelected}
+            onAdjustmentsChangeSelected={handleAdjustmentsChangeSelected}
           />
         </div>
       )}

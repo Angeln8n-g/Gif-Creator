@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { FrameImage, AnimationType, TransitionType, TextOverlay, StickerOverlay, CropSettings, FilterType } from '../types';
+import type { FrameImage, AnimationType, TransitionType, TextOverlay, StickerOverlay, CropSettings, FilterType, ImageAdjustments } from '../types';
 import { AnimationPicker } from './AnimationPicker';
 import { TransitionPicker } from './TransitionPicker';
 import { TextEditor } from './TextEditor';
@@ -7,7 +7,7 @@ import { StickerPicker } from './StickerPicker';
 import { CropEditor } from './CropEditor';
 import { EditorModal } from './EditorModal';
 import { FramePreviewCanvas } from './FramePreviewCanvas';
-import { Trash2, Crop, Type, Smile, Volume2, Music } from 'lucide-react';
+import { Trash2, Crop, Type, Smile, Volume2, Music, Sun, RotateCcw } from 'lucide-react';
 
 interface FrameInspectorProps {
   frame: FrameImage;
@@ -21,6 +21,7 @@ interface FrameInspectorProps {
   onCropChange: (id: string, crop: CropSettings | undefined) => void;
   onSfxChange: (id: string, sfx: FrameImage['sfx'] | undefined) => void;
   onFilterChange: (id: string, filter: FilterType) => void;
+  onAdjustmentsChange: (id: string, adjustments: ImageAdjustments | undefined) => void;
 }
 
 type ModalType = 'crop' | 'text' | 'stickers' | 'sfx' | null;
@@ -37,6 +38,7 @@ export function FrameInspector({
   onCropChange,
   onSfxChange,
   onFilterChange,
+  onAdjustmentsChange,
 }: FrameInspectorProps) {
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [sfxDuration, setSfxDuration] = useState<number>(10);
@@ -160,6 +162,53 @@ export function FrameInspector({
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* Image Adjustments (Lightroom Style) */}
+            <div className="md:col-span-2 pt-4 border-t border-dark-border/40">
+              <h4 className="text-sm font-semibold text-light mb-3 flex items-center space-x-2">
+                <Sun size={14} className="text-amber-400" />
+                <span>Ajustes de Imagen</span>
+                <button
+                  onClick={() => onAdjustmentsChange(frame.id, undefined)}
+                  className="ml-auto text-[9px] text-gray-500 hover:text-amber-400 flex items-center space-x-1 cursor-pointer"
+                  title="Restablecer ajustes"
+                >
+                  <RotateCcw size={10} />
+                  <span>Restablecer</span>
+                </button>
+              </h4>
+              {(() => {
+                const defaultAdj: ImageAdjustments = { brightness: 1, contrast: 1, saturation: 1, exposure: 0, temperature: 0 };
+                const adj = { ...defaultAdj, ...frame.adjustments };
+                const updateAdj = (key: keyof ImageAdjustments, val: number) => {
+                  onAdjustmentsChange(frame.id, { ...adj, [key]: val });
+                };
+                const sliders: { key: keyof ImageAdjustments; label: string; min: number; max: number; step: number; def: number }[] = [
+                  { key: 'brightness', label: 'Brillo', min: 0.5, max: 1.5, step: 0.01, def: 1 },
+                  { key: 'contrast', label: 'Contraste', min: 0.5, max: 1.5, step: 0.01, def: 1 },
+                  { key: 'saturation', label: 'Saturación', min: 0, max: 2, step: 0.01, def: 1 },
+                  { key: 'exposure', label: 'Exposición', min: -0.5, max: 0.5, step: 0.01, def: 0 },
+                  { key: 'temperature', label: 'Temperatura', min: -50, max: 50, step: 1, def: 0 },
+                ];
+                return (
+                  <div className="space-y-2">
+                    {sliders.map(s => (
+                      <div key={s.key}>
+                        <div className="flex items-center justify-between mb-0.5">
+                          <span className="text-[10px] text-gray-400">{s.label}</span>
+                          <span className="text-[10px] font-mono text-amber-400">{adj[s.key].toFixed(s.step < 1 ? 2 : 0)}</span>
+                        </div>
+                        <input
+                          type="range" min={s.min} max={s.max} step={s.step} value={adj[s.key]}
+                          onChange={e => updateAdj(s.key, parseFloat(e.target.value))}
+                          className="w-full h-1.5 bg-dark-border rounded-lg appearance-none cursor-pointer accent-amber-500"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
           </div>
 

@@ -6,9 +6,14 @@ import { TransitionPicker } from './TransitionPicker';
 const textAnimations: { value: TextAnimation; label: string }[] = [
   { value: 'none', label: 'Estático' },
   { value: 'typewriter', label: 'Máquina' },
+  { value: 'typewriter-cursor', label: 'Máquina + Cursor' },
   { value: 'fade-in', label: 'Fade In' },
   { value: 'slide-up', label: 'Slide Up' },
   { value: 'bounce', label: 'Bounce' },
+  { value: 'elastic', label: 'Elástico' },
+  { value: 'spin-in', label: 'Giro' },
+  { value: 'fade-zoom', label: 'Zoom' },
+  { value: 'rotate-3d', label: 'Giro 3D' },
 ];
 
 const fontFamilies = [
@@ -55,12 +60,12 @@ export function TextEditor({ text, onChange }: TextEditorProps) {
       {/* Text Input */}
       <div>
         <label className="text-xs font-medium text-gray-400 mb-1.5 block">Contenido</label>
-        <input
-          type="text"
-          placeholder="Escribe tu texto aquí..."
+        <textarea
+          rows={3}
+          placeholder="Escribe tu texto aquí... (Soporta múltiples líneas)"
           value={current.content}
           onChange={(e) => handleUpdate({ content: e.target.value })}
-          className="w-full bg-black/40 border border-dark-border rounded-lg px-3 py-2.5 text-sm text-light focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors placeholder:text-gray-600"
+          className="w-full bg-black/40 border border-dark-border rounded-lg px-3 py-2 text-xs text-light focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-colors placeholder:text-gray-600 resize-none"
         />
       </div>
 
@@ -85,6 +90,88 @@ export function TextEditor({ text, onChange }: TextEditorProps) {
               className="w-16 bg-black/40 border border-dark-border rounded-lg px-2 py-2 text-xs text-light text-center focus:outline-none focus:border-blue-500"
             />
             <span className="text-[10px] text-gray-500">px</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Alignment Selectors */}
+      <div>
+        <label className="text-xs font-medium text-gray-400 mb-1.5 block">Alineación del Texto</label>
+        <div className="flex gap-2">
+          {[
+            { value: 'left', label: 'Izquierda' },
+            { value: 'center', label: 'Centro' },
+            { value: 'right', label: 'Derecha' }
+          ].map(opt => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => handleUpdate({ align: opt.value as any })}
+              className={`flex-1 py-1.5 rounded-lg text-xs font-medium border transition-colors cursor-pointer
+                ${(current.align || 'center') === opt.value
+                  ? 'bg-blue-500/20 text-blue-400 border-blue-500/40'
+                  : 'bg-black/30 text-gray-500 border border-dark-border hover:text-gray-300'
+                }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Advanced Formatting: Outline and Background Box */}
+      <div className="border-t border-dark-border/40 pt-3 space-y-3">
+        <span className="text-xs font-semibold text-gray-300 block">Formato del Texto</span>
+        
+        {/* Outline Settings */}
+        <div className="space-y-2">
+          <div className="flex justify-between items-center text-[10px] text-gray-400">
+            <span>Contorno (Outline)</span>
+            <span className="font-mono text-blue-400">{current.outlineWidth || 0}px</span>
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="range"
+              min="0"
+              max="10"
+              step="1"
+              value={current.outlineWidth || 0}
+              onChange={(e) => handleUpdate({ outlineWidth: parseInt(e.target.value) })}
+              className="flex-1 h-1.5 bg-dark-border rounded-lg appearance-none cursor-pointer accent-blue-500 self-center"
+            />
+            <input
+              type="color"
+              value={current.outlineColor || '#000000'}
+              onChange={(e) => handleUpdate({ outlineColor: e.target.value })}
+              className="w-6 h-6 rounded bg-transparent border-0 cursor-pointer shrink-0"
+              style={{ display: (current.outlineWidth || 0) > 0 ? 'block' : 'none' }}
+            />
+          </div>
+        </div>
+
+        {/* Background Box Settings */}
+        <div className="space-y-2">
+          <div className="flex justify-between items-center text-[10px] text-gray-400">
+            <span>Caja de Fondo (Instagram Style)</span>
+            <span className="font-mono text-blue-400">{Math.round((current.backgroundOpacity ?? 0.8) * 100)}%</span>
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.1"
+              value={current.backgroundOpacity ?? 0.8}
+              onChange={(e) => handleUpdate({ backgroundOpacity: parseFloat(e.target.value) })}
+              className="flex-1 h-1.5 bg-dark-border rounded-lg appearance-none cursor-pointer accent-blue-500 self-center"
+            />
+            <input
+              type="color"
+              value={current.backgroundColor || '#000000'}
+              onChange={(e) => handleUpdate({ backgroundColor: e.target.value })}
+              className="w-6 h-6 rounded bg-transparent border-0 cursor-pointer shrink-0"
+              style={{ display: (current.backgroundOpacity ?? 0.8) > 0 ? 'block' : 'none' }}
+            />
           </div>
         </div>
       </div>

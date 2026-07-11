@@ -35,9 +35,14 @@ export type FilterType = 'none' | 'grayscale' | 'sepia' | 'invert' | 'vintage' |
 export type TextAnimation = 
   | 'none' 
   | 'typewriter' 
+  | 'typewriter-cursor'
   | 'fade-in' 
   | 'slide-up' 
-  | 'bounce';
+  | 'bounce'
+  | 'elastic'
+  | 'spin-in'
+  | 'fade-zoom'
+  | 'rotate-3d';
 
 // ─── Text Overlay ───
 export interface TextOverlay {
@@ -52,6 +57,11 @@ export interface TextOverlay {
   rotation?: number; // 0-360 degrees
   cameraMovement?: AnimationType;
   transition?: TransitionType;
+  outlineColor?: string;
+  outlineWidth?: number; // 0-10px
+  backgroundColor?: string;
+  backgroundOpacity?: number; // 0.0 - 1.0
+  align?: 'left' | 'center' | 'right';
 }
 
 // ─── Sticker / Emoji Overlay ───
@@ -65,6 +75,9 @@ export interface StickerOverlay {
   animation?: TextAnimation;
   cameraMovement?: AnimationType;
   transition?: TransitionType;
+  type?: 'emoji' | 'custom';
+  url?: string;
+  file?: File;
 }
 
 // ─── Crop / Clip Settings ───
@@ -98,6 +111,15 @@ export interface CropSettings {
   freeformPoints?: { x: number; y: number }[]; // percentage coordinates (0-100)
 }
 
+// ─── Image Adjustments (Lightroom Style) ───
+export interface ImageAdjustments {
+  brightness: number;  // 0.5 – 1.5 (default 1.0)
+  contrast: number;    // 0.5 – 1.5 (default 1.0)
+  saturation: number;  // 0.0 – 2.0 (default 1.0)
+  exposure: number;    // -0.5 – 0.5 (default 0.0)
+  temperature: number; // -50 – 50 (default 0)
+}
+
 export interface FrameImage {
   id: string;
   file: File;
@@ -110,6 +132,7 @@ export interface FrameImage {
   text?: TextOverlay;
   stickers: StickerOverlay[];
   crop?: CropSettings;
+  adjustments?: ImageAdjustments;
   sfx?: {
     name: string;
     url: string;
@@ -121,7 +144,7 @@ export interface FrameImage {
 }
 
 // ─── Render Settings ───
-export type OutputFormat = 'gif' | 'mp4' | 'webp';
+export type OutputFormat = 'gif' | 'mp4' | 'webp' | 'apng';
 export type Resolution = '480p' | '720p' | '1080p' | 'custom';
 export type OptimizationLevel = 'none' | 'low' | 'medium' | 'high';
 

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { toBlobURL, fetchFile } from '@ffmpeg/util';
-import type { FrameImage, RenderSettings, CropSettings, TextOverlay, StickerOverlay } from '../types';
+import type { FrameImage, RenderSettings, CropSettings, TextOverlay, StickerOverlay, ImageAdjustments } from '../types';
 
 // Helper function to fetch resources with progress tracking
 async function fetchWithProgress(
@@ -199,7 +199,8 @@ function getCanvasFilter(filter: string | undefined): string {
     subFrameIndex: number,
     totalSubFrames: number,
     nextFrame?: FrameImage,
-    watermark?: { text?: string; opacity?: number; position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' }
+    watermark?: { text?: string; opacity?: number; position?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right' },
+    stickerBitmaps?: Map<string, ImageBitmap>
   ): Promise<Blob> => {
     const canvas = new OffscreenCanvas(width, height);
     const ctx = canvas.getContext('2d')!;
@@ -269,12 +270,32 @@ function getCanvasFilter(filter: string | undefined): string {
     }
 
     // Helper to draw image with filter
-    const drawImageWithFilter = (ctx: OffscreenCanvasRenderingContext2D, image: ImageBitmap, filterStr: string | undefined, w: number, h: number) => {
+    const drawImageWithFilter = (ctx: OffscreenCanvasRenderingContext2D, image: ImageBitmap, filterStr: string | undefined, w: number, h: number, adjustments?: ImageAdjustments) => {
+      const parts: string[] = [];
       if (filterStr && filterStr !== 'none') {
-        ctx.filter = getCanvasFilter(filterStr);
+        parts.push(getCanvasFilter(filterStr));
+      }
+      if (adjustments) {
+        const a = adjustments;
+        const effectiveBrightness = a.brightness * (1 + a.exposure);
+        parts.push(`brightness(${effectiveBrightness}) contrast(${a.contrast}) saturate(${a.saturation})`);
+      }
+      if (parts.length > 0) {
+        ctx.filter = parts.join(' ');
       }
       drawImageCover(ctx, image, w, h);
       ctx.filter = 'none';
+      if (adjustments && adjustments.temperature !== 0) {
+        const temp = adjustments.temperature;
+        ctx.save();
+        ctx.globalCompositeOperation = 'color';
+        ctx.globalAlpha = Math.abs(temp) / 200;
+        ctx.fillStyle = temp > 0 ? '#F59E0B' : '#3B82F6';
+        ctx.fillRect(0, 0, w, h);
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 1;
+        ctx.restore();
+      }
     };
 
     const transWindow = frame.transitionDuration / frame.duration;
@@ -290,98 +311,98 @@ function getCanvasFilter(filter: string | undefined): string {
       switch (frame.transition) {
         case 'crossfade':
           ctx.globalAlpha = 1 - tp;
-          drawImageWithFilter(ctx, img, frame.filter, w, h);
+          drawImageWithFilter(ctx, img, frame.filter, w, h, frame.adjustments);
           ctx.globalAlpha = tp;
-          drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h);
+          drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h, nextFrame.adjustments);
           ctx.globalAlpha = 1;
           break;
         case 'slide-left':
           ctx.save();
           ctx.translate(-tp * w, 0);
-          drawImageWithFilter(ctx, img, frame.filter, w, h);
+          drawImageWithFilter(ctx, img, frame.filter, w, h, frame.adjustments);
           ctx.translate(w, 0);
-          drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h);
+          drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h, nextFrame.adjustments);
           ctx.restore();
           break;
         case 'slide-right':
           ctx.save();
           ctx.translate(tp * w, 0);
-          drawImageWithFilter(ctx, img, frame.filter, w, h);
+          drawImageWithFilter(ctx, img, frame.filter, w, h, frame.adjustments);
           ctx.translate(-w, 0);
-          drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h);
+          drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h, nextFrame.adjustments);
           ctx.restore();
           break;
         case 'slide-up':
           ctx.save();
           ctx.translate(0, -tp * h);
-          drawImageWithFilter(ctx, img, frame.filter, w, h);
+          drawImageWithFilter(ctx, img, frame.filter, w, h, frame.adjustments);
           ctx.translate(0, h);
-          drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h);
+          drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h, nextFrame.adjustments);
           ctx.restore();
           break;
         case 'slide-down':
           ctx.save();
           ctx.translate(0, tp * h);
-          drawImageWithFilter(ctx, img, frame.filter, w, h);
+          drawImageWithFilter(ctx, img, frame.filter, w, h, frame.adjustments);
           ctx.translate(0, -h);
-          drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h);
+          drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h, nextFrame.adjustments);
           ctx.restore();
           break;
         case 'wipe-left':
-          drawImageWithFilter(ctx, img, frame.filter, w, h);
+          drawImageWithFilter(ctx, img, frame.filter, w, h, frame.adjustments);
           ctx.save();
           ctx.beginPath();
           ctx.rect(0, 0, tp * w, h);
           ctx.clip();
-          drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h);
+          drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h, nextFrame.adjustments);
           ctx.restore();
           break;
         case 'wipe-right':
-          drawImageWithFilter(ctx, img, frame.filter, w, h);
+          drawImageWithFilter(ctx, img, frame.filter, w, h, frame.adjustments);
           ctx.save();
           ctx.beginPath();
           ctx.rect(w - tp * w, 0, tp * w, h);
           ctx.clip();
-          drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h);
+          drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h, nextFrame.adjustments);
           ctx.restore();
           break;
         case 'wipe-up':
-          drawImageWithFilter(ctx, img, frame.filter, w, h);
+          drawImageWithFilter(ctx, img, frame.filter, w, h, frame.adjustments);
           ctx.save();
           ctx.beginPath();
           ctx.rect(0, h - tp * h, w, tp * h);
           ctx.clip();
-          drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h);
+          drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h, nextFrame.adjustments);
           ctx.restore();
           break;
         case 'wipe-down':
-          drawImageWithFilter(ctx, img, frame.filter, w, h);
+          drawImageWithFilter(ctx, img, frame.filter, w, h, frame.adjustments);
           ctx.save();
           ctx.beginPath();
           ctx.rect(0, 0, w, tp * h);
           ctx.clip();
-          drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h);
+          drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h, nextFrame.adjustments);
           ctx.restore();
           break;
         case 'fade-black':
           if (tp < 0.5) {
             ctx.globalAlpha = 1 - tp * 2;
-            drawImageWithFilter(ctx, img, frame.filter, w, h);
+            drawImageWithFilter(ctx, img, frame.filter, w, h, frame.adjustments);
           } else {
             ctx.globalAlpha = (tp - 0.5) * 2;
-            drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h);
+            drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h, nextFrame.adjustments);
           }
           ctx.globalAlpha = 1;
           break;
         case 'fade-white':
           if (tp < 0.5) {
             ctx.globalAlpha = 1 - tp * 2;
-            drawImageWithFilter(ctx, img, frame.filter, w, h);
+            drawImageWithFilter(ctx, img, frame.filter, w, h, frame.adjustments);
             ctx.fillStyle = `rgba(255, 255, 255, ${tp * 2})`;
             ctx.fillRect(0, 0, w, h);
           } else {
             ctx.globalAlpha = (tp - 0.5) * 2;
-            drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h);
+            drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h, nextFrame.adjustments);
             ctx.fillStyle = `rgba(255, 255, 255, ${(1 - tp) * 2})`;
             ctx.fillRect(0, 0, w, h);
           }
@@ -394,7 +415,7 @@ function getCanvasFilter(filter: string | undefined): string {
           const scaleC = 1 + tp * 0.5;
           ctx.scale(scaleC, scaleC);
           ctx.translate(-w / 2, -h / 2);
-          drawImageWithFilter(ctx, img, frame.filter, w, h);
+          drawImageWithFilter(ctx, img, frame.filter, w, h, frame.adjustments);
           ctx.restore();
 
           ctx.save();
@@ -403,7 +424,7 @@ function getCanvasFilter(filter: string | undefined): string {
           const scaleN = 0.5 + tp * 0.5;
           ctx.scale(scaleN, scaleN);
           ctx.translate(-w / 2, -h / 2);
-          drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h);
+          drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h, nextFrame.adjustments);
           ctx.restore();
           ctx.globalAlpha = 1;
           break;
@@ -414,7 +435,7 @@ function getCanvasFilter(filter: string | undefined): string {
           const scaleCOut = 1 - tp * 0.3;
           ctx.scale(scaleCOut, scaleCOut);
           ctx.translate(-w / 2, -h / 2);
-          drawImageWithFilter(ctx, img, frame.filter, w, h);
+          drawImageWithFilter(ctx, img, frame.filter, w, h, frame.adjustments);
           ctx.restore();
 
           ctx.save();
@@ -423,17 +444,26 @@ function getCanvasFilter(filter: string | undefined): string {
           const scaleNOut = 1.5 - tp * 0.5;
           ctx.scale(scaleNOut, scaleNOut);
           ctx.translate(-w / 2, -h / 2);
-          drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h);
+          drawImageWithFilter(ctx, nextImg, nextFrame.filter, w, h, nextFrame.adjustments);
           ctx.restore();
           ctx.globalAlpha = 1;
           break;
         default:
-          drawImageWithFilter(ctx, img, frame.filter, w, h);
+          drawImageWithFilter(ctx, img, frame.filter, w, h, frame.adjustments);
       }
     } else {
       // Normal draw (with filter + crop if any)
+      const filterParts: string[] = [];
       if (frame.filter && frame.filter !== 'none') {
-        ctx.filter = getCanvasFilter(frame.filter);
+        filterParts.push(getCanvasFilter(frame.filter));
+      }
+      if (frame.adjustments) {
+        const a = frame.adjustments;
+        const effectiveBrightness = a.brightness * (1 + a.exposure);
+        filterParts.push(`brightness(${effectiveBrightness}) contrast(${a.contrast}) saturate(${a.saturation})`);
+      }
+      if (filterParts.length > 0) {
+        ctx.filter = filterParts.join(' ');
       }
 
       if (frame.crop && frame.crop.shape !== 'none') {
@@ -444,6 +474,18 @@ function getCanvasFilter(filter: string | undefined): string {
         ctx.restore();
 
         ctx.filter = 'none';
+        
+        if (frame.adjustments && frame.adjustments.temperature !== 0) {
+          const temp = frame.adjustments.temperature;
+          ctx.save();
+          ctx.globalCompositeOperation = 'color';
+          ctx.globalAlpha = Math.abs(temp) / 200;
+          ctx.fillStyle = temp > 0 ? '#F59E0B' : '#3B82F6';
+          ctx.fillRect(0, 0, width, height);
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.globalAlpha = 1;
+          ctx.restore();
+        }
 
         if (frame.crop.borderWidth > 0) {
           ctx.save();
@@ -456,6 +498,17 @@ function getCanvasFilter(filter: string | undefined): string {
       } else {
         drawImageCover(ctx, img, width, height);
         ctx.filter = 'none';
+        if (frame.adjustments && frame.adjustments.temperature !== 0) {
+          const temp = frame.adjustments.temperature;
+          ctx.save();
+          ctx.globalCompositeOperation = 'color';
+          ctx.globalAlpha = Math.abs(temp) / 200;
+          ctx.fillStyle = temp > 0 ? '#F59E0B' : '#3B82F6';
+          ctx.fillRect(0, 0, width, height);
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.globalAlpha = 1;
+          ctx.restore();
+        }
       }
     }
 
@@ -465,7 +518,7 @@ function getCanvasFilter(filter: string | undefined): string {
     renderTextOverlay(ctx, frame.text, progress, width, height, frame.duration, frame.transitionDuration);
 
     // ── Draw stickers with full animations ──
-    renderStickerOverlays(ctx, frame.stickers, progress, width, height, frame.duration, frame.transitionDuration);
+    renderStickerOverlays(ctx, frame.stickers, progress, width, height, frame.duration, frame.transitionDuration, stickerBitmaps);
 
     // ── Draw global watermark ──
     if (watermark && watermark.text) {
@@ -535,9 +588,41 @@ function getCanvasFilter(filter: string | undefined): string {
         displayText = txt.content.substring(0, chars);
         break;
       }
+      case 'typewriter-cursor': {
+        const chars = Math.floor(easeInOut(Math.min(progress * 2, 1)) * txt.content.length);
+        displayText = txt.content.substring(0, chars);
+        if (progress < 1.0 && Math.floor(progress * 15) % 2 === 0) {
+          displayText += '|';
+        }
+        break;
+      }
     }
 
     ctx.translate(x, y + offsetY);
+
+    // Advanced scaling and rotating entry animations
+    if (txt.animation === 'elastic') {
+      const t = Math.min(progress * 2, 1);
+      let scale = 1;
+      if (t < 1) {
+        scale = 2 ** (-10 * t) * Math.sin((t * 10 - 0.75) * ((2 * Math.PI) / 3)) + 1;
+        alpha = t;
+      }
+      ctx.scale(scale, scale);
+    } else if (txt.animation === 'spin-in') {
+      const t = Math.min(progress * 2.5, 1);
+      alpha = t;
+      ctx.rotate((1 - t) * Math.PI * 2);
+    } else if (txt.animation === 'fade-zoom') {
+      const t = Math.min(progress * 3, 1);
+      alpha = t;
+      ctx.scale(t, t);
+    } else if (txt.animation === 'rotate-3d') {
+      const t = Math.min(progress * 2.5, 1);
+      alpha = t;
+      const scaleX = Math.abs(Math.cos((1 - t) * Math.PI));
+      ctx.scale(scaleX, 1);
+    }
 
     // Camera movement
     if (txt.cameraMovement && txt.cameraMovement !== 'none') {
@@ -576,14 +661,91 @@ function getCanvasFilter(filter: string | undefined): string {
 
     ctx.globalAlpha = alpha;
     ctx.font = `bold ${fontSize}px ${txt.fontFamily}, sans-serif`;
-    ctx.textAlign = 'center';
+    ctx.textAlign = txt.align || 'center';
     ctx.textBaseline = 'middle';
     ctx.shadowColor = txt.shadowColor;
     ctx.shadowBlur = 4;
     ctx.shadowOffsetX = 2;
     ctx.shadowOffsetY = 2;
-    ctx.fillStyle = txt.color;
-    ctx.fillText(displayText, 0, 0);
+
+    const lines = displayText.split('\n');
+    const lineSpacing = fontSize * 1.25;
+
+    // Draw background boxes first
+    if (txt.backgroundColor && (txt.backgroundOpacity ?? 0) > 0) {
+      ctx.save();
+      // Remove shadow for background boxes
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+      
+      const opacity = txt.backgroundOpacity ?? 0.8;
+      ctx.fillStyle = txt.backgroundColor;
+      ctx.globalAlpha = alpha * opacity;
+      
+      lines.forEach((line, idx) => {
+        if (!line.trim()) return;
+        const metrics = ctx.measureText(line);
+        const textWidth = metrics.width;
+        const boxHeight = fontSize * 1.2;
+        const paddingX = fontSize * 0.35;
+        const paddingY = fontSize * 0.1;
+        
+        // Offset Y for this line
+        const ly = (idx - (lines.length - 1) / 2) * lineSpacing;
+        
+        let lx = 0;
+        if (ctx.textAlign === 'center') {
+          lx = -textWidth / 2 - paddingX;
+        } else if (ctx.textAlign === 'left') {
+          lx = -paddingX;
+        } else if (ctx.textAlign === 'right') {
+          lx = -textWidth - paddingX;
+        }
+        
+        // Draw rounded rectangle
+        const rx = lx;
+        const ry = ly - boxHeight / 2 - paddingY;
+        const rw = textWidth + paddingX * 2;
+        const rh = boxHeight + paddingY * 2;
+        const radius = fontSize * 0.2; // rounded corners
+        
+        ctx.beginPath();
+        ctx.moveTo(rx + radius, ry);
+        ctx.lineTo(rx + rw - radius, ry);
+        ctx.quadraticCurveTo(rx + rw, ry, rx + rw, ry + radius);
+        ctx.lineTo(rx + rw, ry + rh - radius);
+        ctx.quadraticCurveTo(rx + rw, ry + rh, rx + rw - radius, ry + rh);
+        ctx.lineTo(rx + radius, ry + rh);
+        ctx.quadraticCurveTo(rx, ry + rh, rx, ry + rh - radius);
+        ctx.lineTo(rx, ry + radius);
+        ctx.quadraticCurveTo(rx, ry, rx + radius, ry);
+        ctx.closePath();
+        ctx.fill();
+      });
+      ctx.restore();
+    }
+
+    // Draw text (fill & stroke)
+    lines.forEach((line, idx) => {
+      const ly = (idx - (lines.length - 1) / 2) * lineSpacing;
+      
+      // Outline
+      if (txt.outlineWidth && txt.outlineWidth > 0 && txt.outlineColor) {
+        ctx.save();
+        ctx.strokeStyle = txt.outlineColor;
+        ctx.lineWidth = txt.outlineWidth * (w / 640);
+        ctx.lineJoin = 'round';
+        ctx.strokeText(line, 0, ly);
+        ctx.restore();
+      }
+      
+      // Fill
+      ctx.fillStyle = txt.color;
+      ctx.fillText(line, 0, ly);
+    });
+
     ctx.restore();
   };
 
@@ -595,7 +757,8 @@ function getCanvasFilter(filter: string | undefined): string {
     w: number,
     h: number,
     duration: number,
-    transitionDuration: number
+    transitionDuration: number,
+    stickerBitmaps?: Map<string, ImageBitmap>
   ) => {
     stickers.forEach(sticker => {
       const x = (sticker.x / 100) * w;
@@ -615,6 +778,30 @@ function getCanvasFilter(filter: string | undefined): string {
       }
 
       ctx.translate(x, y + offsetY);
+
+      // Advanced scaling and rotating entry animations for stickers
+      if (sticker.animation === 'elastic') {
+        const t = Math.min(progress * 2, 1);
+        let scale = 1;
+        if (t < 1) {
+          scale = 2 ** (-10 * t) * Math.sin((t * 10 - 0.75) * ((2 * Math.PI) / 3)) + 1;
+          alpha = t;
+        }
+        ctx.scale(scale, scale);
+      } else if (sticker.animation === 'spin-in') {
+        const t = Math.min(progress * 2.5, 1);
+        alpha = t;
+        ctx.rotate((1 - t) * Math.PI * 2);
+      } else if (sticker.animation === 'fade-zoom') {
+        const t = Math.min(progress * 3, 1);
+        alpha = t;
+        ctx.scale(t, t);
+      } else if (sticker.animation === 'rotate-3d') {
+        const t = Math.min(progress * 2.5, 1);
+        alpha = t;
+        const scaleX = Math.abs(Math.cos((1 - t) * Math.PI));
+        ctx.scale(scaleX, 1);
+      }
 
       // Camera movement
       if (sticker.cameraMovement && sticker.cameraMovement !== 'none') {
@@ -652,10 +839,15 @@ function getCanvasFilter(filter: string | undefined): string {
       }
 
       ctx.globalAlpha = alpha;
-      ctx.font = `${size}px serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(sticker.emoji, 0, 0);
+      const bmp = stickerBitmaps?.get(sticker.id);
+      if (sticker.type === 'custom' && bmp) {
+        ctx.drawImage(bmp, -size / 2, -size / 2, size, size);
+      } else {
+        ctx.font = `${size}px serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(sticker.emoji, 0, 0);
+      }
       ctx.restore();
     });
   };
@@ -672,6 +864,23 @@ function getCanvasFilter(filter: string | undefined): string {
     const ffmpeg = ffmpegRef.current;
     
     try {
+      // Preload custom stickers
+      const stickerBitmaps = new Map<string, ImageBitmap>();
+      for (const frame of frames) {
+        for (const sticker of frame.stickers) {
+          if (sticker.type === 'custom' && sticker.url && !stickerBitmaps.has(sticker.id)) {
+            try {
+              const res = await fetch(sticker.url);
+              const blob = await res.blob();
+              const bmp = await createImageBitmap(blob);
+              stickerBitmaps.set(sticker.id, bmp);
+            } catch (err) {
+              console.error("Failed to load custom sticker bitmap:", err);
+            }
+          }
+        }
+      }
+
       // Determine output dimensions
       let outW = 1280, outH = 720;
       if (settings.resolution === '480p') { outW = 854; outH = 480; }
@@ -720,7 +929,8 @@ function getCanvasFilter(filter: string | undefined): string {
                 text: settings.watermarkText,
                 opacity: settings.watermarkOpacity,
                 position: settings.watermarkPosition
-              }
+              },
+              stickerBitmaps
             );
             const data = new Uint8Array(await blob.arrayBuffer());
             const fname = `frame_${fileIndex}.png`;
@@ -746,7 +956,8 @@ function getCanvasFilter(filter: string | undefined): string {
       concatText += `file 'frame_${fileIndex - 1}.png'\n`;
       await ffmpeg.writeFile('concat_list.txt', concatText);
 
-      const outputName = `output.${settings.format}`;
+      const ext = settings.format === 'apng' ? 'png' : settings.format;
+      const outputName = `output.${ext}`;
       const scaleFilter = `scale=${outW}:${outH}:force_original_aspect_ratio=decrease,pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2`;
 
       if (settings.format === 'gif') {
@@ -799,6 +1010,13 @@ function getCanvasFilter(filter: string | undefined): string {
           '-f', 'concat', '-safe', '0', '-i', 'concat_list.txt',
           '-vf', scaleFilter,
           '-c:v', 'libwebp_anim', '-loop', '0', '-q:v', String(qv),
+          '-y', outputName
+        ]);
+      } else if (settings.format === 'apng') {
+        await ffmpeg.exec([
+          '-f', 'concat', '-safe', '0', '-i', 'concat_list.txt',
+          '-vf', scaleFilter,
+          '-c:v', 'apng', '-plays', '0',
           '-y', outputName
         ]);
       } else {
@@ -916,7 +1134,7 @@ function getCanvasFilter(filter: string | undefined): string {
       setProgress(90);
 
       const data = await ffmpeg.readFile(outputName);
-      const mimeType = settings.format === 'gif' ? 'image/gif' : settings.format === 'webp' ? 'image/webp' : 'video/mp4';
+      const mimeType = settings.format === 'gif' ? 'image/gif' : settings.format === 'webp' ? 'image/webp' : settings.format === 'apng' ? 'image/png' : 'video/mp4';
       const blob = new Blob([data as unknown as BlobPart], { type: mimeType });
       const url = URL.createObjectURL(blob);
       

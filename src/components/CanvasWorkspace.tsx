@@ -30,6 +30,8 @@ interface CanvasWorkspaceProps {
   onVideoDismiss: () => void;
   /** Required by TimelineEditor for frame mutations (reorder, edit, delete) */
   setFrames: React.Dispatch<React.SetStateAction<FrameImage[]>>;
+  onReverseTimeline?: () => void;
+  onBoomerangTimeline?: () => void;
 }
 
 export function CanvasWorkspace({
@@ -55,6 +57,8 @@ export function CanvasWorkspace({
   setFrames,
   audioTrack,
   audioVolume,
+  onReverseTimeline,
+  onBoomerangTimeline,
 }: CanvasWorkspaceProps) {
   // Determine which canvas state to render — mutually exclusive
   const showEmpty = frames.length === 0 && !isExtractingGif;
@@ -220,6 +224,8 @@ export function CanvasWorkspace({
             setFrames={setFrames}
             currentTime={currentTime}
             playerRef={playerRef}
+            onReverseTimeline={onReverseTimeline}
+            onBoomerangTimeline={onBoomerangTimeline}
           />
         </div>
       )}

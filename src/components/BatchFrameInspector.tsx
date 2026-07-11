@@ -1,7 +1,7 @@
-import type { FrameImage, AnimationType, TransitionType, FilterType } from '../types';
+import type { FrameImage, AnimationType, TransitionType, FilterType, ImageAdjustments } from '../types';
 import { AnimationPicker } from './AnimationPicker';
 import { TransitionPicker } from './TransitionPicker';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Sun, RotateCcw } from 'lucide-react';
 
 interface BatchFrameInspectorProps {
   selectedFrames: FrameImage[];
@@ -11,6 +11,7 @@ interface BatchFrameInspectorProps {
   onTransitionChangeSelected: (transition: TransitionType) => void;
   onTransitionDurationChangeSelected: (duration: number) => void;
   onFilterChangeSelected: (filter: FilterType) => void;
+  onAdjustmentsChangeSelected: (updateFn: (prev: ImageAdjustments | undefined) => ImageAdjustments | undefined) => void;
 }
 
 export function BatchFrameInspector({
@@ -21,6 +22,7 @@ export function BatchFrameInspector({
   onTransitionChangeSelected,
   onTransitionDurationChangeSelected,
   onFilterChangeSelected,
+  onAdjustmentsChangeSelected,
 }: BatchFrameInspectorProps) {
   
   if (selectedFrames.length === 0) return null;
@@ -167,6 +169,69 @@ export function BatchFrameInspector({
           {!allFiltersMatch && (
             <p className="text-[10px] text-gray-500">Los fotogramas seleccionados tienen filtros distintos. Elige uno para unificar.</p>
           )}
+        </div>
+
+        {/* Image Adjustments (Batch) */}
+        <div className="md:col-span-2 space-y-4 pt-4 border-t border-dark-border/40">
+          <h4 className="text-sm font-semibold text-light flex items-center space-x-2">
+            <Sun size={14} className="text-amber-400" />
+            <span>Ajustes de Imagen (Lote)</span>
+            <button
+              onClick={() => onAdjustmentsChangeSelected(() => undefined)}
+              className="ml-auto text-[9px] text-gray-500 hover:text-amber-400 flex items-center space-x-1 cursor-pointer"
+              title="Restablecer ajustes en seleccionados"
+            >
+              <RotateCcw size={10} />
+              <span>Restablecer</span>
+            </button>
+          </h4>
+          {(() => {
+            const defaultAdj: ImageAdjustments = { brightness: 1, contrast: 1, saturation: 1, exposure: 0, temperature: 0 };
+            const isMixed = !selectedFrames.every(f => 
+              JSON.stringify(f.adjustments || defaultAdj) === JSON.stringify(selectedFrames[0].adjustments || defaultAdj)
+            );
+            const adj = selectedFrames.length > 0 ? { ...defaultAdj, ...selectedFrames[0].adjustments } : defaultAdj;
+            
+            const updateAdj = (key: keyof ImageAdjustments, val: number) => {
+              onAdjustmentsChangeSelected((prev) => ({
+                ...(prev || defaultAdj),
+                [key]: val
+              }));
+            };
+            
+            const sliders: { key: keyof ImageAdjustments; label: string; min: number; max: number; step: number }[] = [
+              { key: 'brightness', label: 'Brillo', min: 0.5, max: 1.5, step: 0.01 },
+              { key: 'contrast', label: 'Contraste', min: 0.5, max: 1.5, step: 0.01 },
+              { key: 'saturation', label: 'Saturación', min: 0, max: 2, step: 0.01 },
+              { key: 'exposure', label: 'Exposición', min: -0.5, max: 0.5, step: 0.01 },
+              { key: 'temperature', label: 'Temperatura', min: -50, max: 50, step: 1 },
+            ];
+            
+            return (
+              <div className="space-y-2">
+                {isMixed && (
+                  <p className="text-[10px] text-amber-500/80 mb-2 leading-tight">
+                    Los ajustes varían entre los fotogramas seleccionados. Mover un control los unificará.
+                  </p>
+                )}
+                {sliders.map(s => (
+                  <div key={s.key}>
+                    <div className="flex items-center justify-between mb-0.5">
+                      <span className="text-[10px] text-gray-400">{s.label}</span>
+                      <span className="text-[10px] font-mono text-amber-400">
+                        {isMixed ? 'Mix' : adj[s.key].toFixed(s.step < 1 ? 2 : 0)}
+                      </span>
+                    </div>
+                    <input
+                      type="range" min={s.min} max={s.max} step={s.step} value={adj[s.key]}
+                      onChange={e => updateAdj(s.key, parseFloat(e.target.value))}
+                      className="w-full h-1.5 bg-dark-border rounded-lg appearance-none cursor-pointer accent-amber-500"
+                    />
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </div>
 
       </div>

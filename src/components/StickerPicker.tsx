@@ -1,14 +1,20 @@
 import { useState } from 'react';
 import type { StickerOverlay, TextAnimation } from '../types';
-import { X, Move, RotateCw } from 'lucide-react';
+import { X, Move, RotateCw, Upload } from 'lucide-react';
 import { AnimationPicker } from './AnimationPicker';
 import { TransitionPicker } from './TransitionPicker';
 
 const stickerAnimations: { value: TextAnimation; label: string }[] = [
   { value: 'none', label: 'Ninguna' },
+  { value: 'typewriter', label: 'Máquina' },
+  { value: 'typewriter-cursor', label: 'Máquina + Cursor' },
   { value: 'fade-in', label: 'Fade In' },
   { value: 'slide-up', label: 'Slide Up' },
   { value: 'bounce', label: 'Bounce' },
+  { value: 'elastic', label: 'Elástico' },
+  { value: 'spin-in', label: 'Giro' },
+  { value: 'fade-zoom', label: 'Zoom' },
+  { value: 'rotate-3d', label: 'Giro 3D' },
 ];
 
 const emojiCategories = [
@@ -53,6 +59,26 @@ export function StickerPicker({ stickers, onChange }: StickerPickerProps) {
     onChange([...stickers, newSticker]);
   };
 
+  const handleCustomStickerUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const newSticker: StickerOverlay = {
+      id: crypto.randomUUID(),
+      emoji: '🖼️',
+      x: 50,
+      y: 50,
+      size: 64,
+      rotation: 0,
+      animation: 'none',
+      cameraMovement: 'none',
+      transition: 'none',
+      type: 'custom',
+      url: URL.createObjectURL(file),
+      file
+    };
+    onChange([...stickers, newSticker]);
+  };
+
   const removeSticker = (id: string) => {
     onChange(stickers.filter(s => s.id !== id));
     if (editingId === id) setEditingId(null);
@@ -74,10 +100,14 @@ export function StickerPicker({ stickers, onChange }: StickerPickerProps) {
               <div key={s.id} className="relative group">
                 <button
                   onClick={() => setEditingId(editingId === s.id ? null : s.id)}
-                  className={`text-2xl p-1.5 rounded-lg transition-all cursor-pointer
+                  className={`p-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center min-w-10 min-h-10
                     ${editingId === s.id ? 'bg-amber-500/20 ring-1 ring-amber-500' : 'bg-black/30 hover:bg-black/50'}`}
                 >
-                  {s.emoji}
+                  {s.type === 'custom' && s.url ? (
+                    <img src={s.url} alt="Sticker" className="w-7 h-7 object-contain rounded" />
+                  ) : (
+                    <span className="text-2xl">{s.emoji}</span>
+                  )}
                 </button>
                 <button
                   onClick={() => removeSticker(s.id)}
@@ -99,7 +129,7 @@ export function StickerPicker({ stickers, onChange }: StickerPickerProps) {
           <div className="p-3 bg-black/30 rounded-xl border border-amber-500/20 space-y-3">
             <div className="flex items-center gap-1.5 text-[11px] text-amber-400 font-medium">
               <Move size={12} />
-              <span>Editar {sticker.emoji}</span>
+              <span>Editar {sticker.type === 'custom' ? 'Sticker Imagen' : sticker.emoji}</span>
             </div>
             <div className="grid grid-cols-3 gap-3">
               <div>
@@ -189,9 +219,27 @@ export function StickerPicker({ stickers, onChange }: StickerPickerProps) {
         );
       })()}
 
+      {/* Custom Sticker Upload */}
+      <div className="border-t border-dark-border/40 pt-3">
+        <label className="text-xs font-medium text-gray-400 mb-2 block flex items-center gap-1.5">
+          <Upload size={12} />
+          Subir Sticker Personalizado (PNG/SVG)
+        </label>
+        <label className="flex items-center justify-center border border-dashed border-dark-border hover:border-gray-500 bg-dark-bg/30 hover:bg-dark-bg/50 rounded-xl p-3 transition-colors cursor-pointer text-center">
+          <Upload size={14} className="text-gray-500 mr-2" />
+          <span className="text-[11px] text-gray-400 font-medium">Seleccionar imagen</span>
+          <input
+            type="file"
+            accept="image/png, image/svg+xml, image/jpeg, image/webp"
+            onChange={handleCustomStickerUpload}
+            className="hidden"
+          />
+        </label>
+      </div>
+
       {/* Emoji Grid */}
       <div>
-        <label className="text-xs font-medium text-gray-400 mb-2 block">Agregar Sticker</label>
+        <label className="text-xs font-medium text-gray-400 mb-2 block">Agregar Emoji</label>
         {emojiCategories.map(cat => (
           <div key={cat.name} className="mb-3">
             <p className="text-[10px] text-gray-500 mb-1.5 font-medium uppercase tracking-wider">{cat.name}</p>

@@ -220,13 +220,35 @@ function applyCropAndDraw(
 ) {
   const crop = frame.crop;
 
+  // Build combined CSS filter from preset + adjustments
+  const filterParts: string[] = [];
   if (frame.filter && frame.filter !== 'none') {
-    ctx.filter = getCanvasFilter(frame.filter);
+    filterParts.push(getCanvasFilter(frame.filter));
+  }
+  if (frame.adjustments) {
+    const a = frame.adjustments;
+    const effectiveBrightness = a.brightness * (1 + a.exposure);
+    filterParts.push(`brightness(${effectiveBrightness}) contrast(${a.contrast}) saturate(${a.saturation})`);
+  }
+  if (filterParts.length > 0) {
+    ctx.filter = filterParts.join(' ');
   }
 
   if (!crop || crop.shape === 'none') {
     drawImageCover(ctx, img, cw, ch);
     ctx.filter = 'none';
+    // Temperature overlay
+    if (frame.adjustments && frame.adjustments.temperature !== 0) {
+      const temp = frame.adjustments.temperature;
+      ctx.save();
+      ctx.globalCompositeOperation = 'color';
+      ctx.globalAlpha = Math.abs(temp) / 200;
+      ctx.fillStyle = temp > 0 ? '#F59E0B' : '#3B82F6';
+      ctx.fillRect(0, 0, cw, ch);
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 1;
+      ctx.restore();
+    }
     return;
   }
 
@@ -302,6 +324,7 @@ export const PreviewPlayer = forwardRef<PreviewPlayerRef, PreviewPlayerProps>(({
   const animRef = useRef<number>(0);
   const lastTimeRef = useRef<number>(0);
   const imagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
+  const stickerImagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
   const currentFrameRef = useRef(0);
 
   const lastSfxFrameRef = useRef<number>(-1);
@@ -537,11 +560,33 @@ export const PreviewPlayer = forwardRef<PreviewPlayerRef, PreviewPlayerProps>(({
     }
 
     const drawImageWithFilter = (c: CanvasRenderingContext2D, image: HTMLImageElement, fStr: string | undefined, cw: number, ch: number) => {
+      // Build combined CSS filter from preset + adjustments
+      const parts: string[] = [];
       if (fStr && fStr !== 'none') {
-        c.filter = getCanvasFilter(fStr);
+        parts.push(getCanvasFilter(fStr));
+      }
+      if (frame.adjustments) {
+        const a = frame.adjustments;
+        const effectiveBrightness = a.brightness * (1 + a.exposure);
+        parts.push(`brightness(${effectiveBrightness}) contrast(${a.contrast}) saturate(${a.saturation})`);
+      }
+      if (parts.length > 0) {
+        c.filter = parts.join(' ');
       }
       drawImageCover(c, image, cw, ch);
       c.filter = 'none';
+      // Temperature overlay
+      if (frame.adjustments && frame.adjustments.temperature !== 0) {
+        const temp = frame.adjustments.temperature;
+        c.save();
+        c.globalCompositeOperation = 'color';
+        c.globalAlpha = Math.abs(temp) / 200;
+        c.fillStyle = temp > 0 ? '#F59E0B' : '#3B82F6';
+        c.fillRect(0, 0, cw, ch);
+        c.globalCompositeOperation = 'source-over';
+        c.globalAlpha = 1;
+        c.restore();
+      }
     };
 
     // Compute transition progress: 0..1 within the transition window
@@ -739,9 +784,41 @@ export const PreviewPlayer = forwardRef<PreviewPlayerRef, PreviewPlayerProps>(({
         displayText = txt.content.substring(0, chars);
         break;
       }
+      case 'typewriter-cursor': {
+        const chars = Math.floor(easeInOut(Math.min(progress * 2, 1)) * txt.content.length);
+        displayText = txt.content.substring(0, chars);
+        if (progress < 1.0 && Math.floor(progress * 15) % 2 === 0) {
+          displayText += '|';
+        }
+        break;
+      }
     }
 
     ctx.translate(x, y + offsetY);
+
+    // Advanced scaling and rotating entry animations
+    if (txt.animation === 'elastic') {
+      const t = Math.min(progress * 2, 1);
+      let scale = 1;
+      if (t < 1) {
+        scale = 2 ** (-10 * t) * Math.sin((t * 10 - 0.75) * ((2 * Math.PI) / 3)) + 1;
+        alpha = t;
+      }
+      ctx.scale(scale, scale);
+    } else if (txt.animation === 'spin-in') {
+      const t = Math.min(progress * 2.5, 1);
+      alpha = t;
+      ctx.rotate((1 - t) * Math.PI * 2);
+    } else if (txt.animation === 'fade-zoom') {
+      const t = Math.min(progress * 3, 1);
+      alpha = t;
+      ctx.scale(t, t);
+    } else if (txt.animation === 'rotate-3d') {
+      const t = Math.min(progress * 2.5, 1);
+      alpha = t;
+      const scaleX = Math.abs(Math.cos((1 - t) * Math.PI));
+      ctx.scale(scaleX, 1);
+    }
 
     // Camera movement
     if (txt.cameraMovement && txt.cameraMovement !== 'none') {
@@ -780,7 +857,7 @@ export const PreviewPlayer = forwardRef<PreviewPlayerRef, PreviewPlayerProps>(({
 
     ctx.globalAlpha = alpha;
     ctx.font = `bold ${fontSize}px ${txt.fontFamily}, sans-serif`;
-    ctx.textAlign = 'center';
+    ctx.textAlign = txt.align || 'center';
     ctx.textBaseline = 'middle';
     
     // Shadow
@@ -788,8 +865,85 @@ export const PreviewPlayer = forwardRef<PreviewPlayerRef, PreviewPlayerProps>(({
     ctx.shadowBlur = 4;
     ctx.shadowOffsetX = 2;
     ctx.shadowOffsetY = 2;
-    ctx.fillStyle = txt.color;
-    ctx.fillText(displayText, 0, 0);
+
+    const lines = displayText.split('\n');
+    const lineSpacing = fontSize * 1.25;
+
+    // Draw background boxes first
+    if (txt.backgroundColor && (txt.backgroundOpacity ?? 0) > 0) {
+      ctx.save();
+      // Remove shadow for background boxes
+      ctx.shadowColor = 'transparent';
+      ctx.shadowBlur = 0;
+      ctx.shadowOffsetX = 0;
+      ctx.shadowOffsetY = 0;
+      
+      const opacity = txt.backgroundOpacity ?? 0.8;
+      ctx.fillStyle = txt.backgroundColor;
+      ctx.globalAlpha = alpha * opacity;
+      
+      lines.forEach((line, idx) => {
+        if (!line.trim()) return;
+        const metrics = ctx.measureText(line);
+        const textWidth = metrics.width;
+        const boxHeight = fontSize * 1.2;
+        const paddingX = fontSize * 0.35;
+        const paddingY = fontSize * 0.1;
+        
+        // Offset Y for this line
+        const ly = (idx - (lines.length - 1) / 2) * lineSpacing;
+        
+        let lx = 0;
+        if (ctx.textAlign === 'center') {
+          lx = -textWidth / 2 - paddingX;
+        } else if (ctx.textAlign === 'left') {
+          lx = -paddingX;
+        } else if (ctx.textAlign === 'right') {
+          lx = -textWidth - paddingX;
+        }
+        
+        // Draw rounded rectangle
+        const rx = lx;
+        const ry = ly - boxHeight / 2 - paddingY;
+        const rw = textWidth + paddingX * 2;
+        const rh = boxHeight + paddingY * 2;
+        const radius = fontSize * 0.2; // rounded corners
+        
+        ctx.beginPath();
+        ctx.moveTo(rx + radius, ry);
+        ctx.lineTo(rx + rw - radius, ry);
+        ctx.quadraticCurveTo(rx + rw, ry, rx + rw, ry + radius);
+        ctx.lineTo(rx + rw, ry + rh - radius);
+        ctx.quadraticCurveTo(rx + rw, ry + rh, rx + rw - radius, ry + rh);
+        ctx.lineTo(rx + radius, ry + rh);
+        ctx.quadraticCurveTo(rx, ry + rh, rx, ry + rh - radius);
+        ctx.lineTo(rx, ry + radius);
+        ctx.quadraticCurveTo(rx, ry, rx + radius, ry);
+        ctx.closePath();
+        ctx.fill();
+      });
+      ctx.restore();
+    }
+
+    // Draw text (fill & stroke)
+    lines.forEach((line, idx) => {
+      const ly = (idx - (lines.length - 1) / 2) * lineSpacing;
+      
+      // Outline
+      if (txt.outlineWidth && txt.outlineWidth > 0 && txt.outlineColor) {
+        ctx.save();
+        ctx.strokeStyle = txt.outlineColor;
+        ctx.lineWidth = txt.outlineWidth * (w / 640);
+        ctx.lineJoin = 'round';
+        ctx.strokeText(line, 0, ly);
+        ctx.restore();
+      }
+      
+      // Fill
+      ctx.fillStyle = txt.color;
+      ctx.fillText(line, 0, ly);
+    });
+
     ctx.restore();
   }, []);
 
@@ -812,6 +966,30 @@ export const PreviewPlayer = forwardRef<PreviewPlayerRef, PreviewPlayerProps>(({
       }
 
       ctx.translate(x, y + offsetY);
+
+      // Advanced scaling and rotating entry animations for stickers
+      if (sticker.animation === 'elastic') {
+        const t = Math.min(progress * 2, 1);
+        let scale = 1;
+        if (t < 1) {
+          scale = 2 ** (-10 * t) * Math.sin((t * 10 - 0.75) * ((2 * Math.PI) / 3)) + 1;
+          alpha = t;
+        }
+        ctx.scale(scale, scale);
+      } else if (sticker.animation === 'spin-in') {
+        const t = Math.min(progress * 2.5, 1);
+        alpha = t;
+        ctx.rotate((1 - t) * Math.PI * 2);
+      } else if (sticker.animation === 'fade-zoom') {
+        const t = Math.min(progress * 3, 1);
+        alpha = t;
+        ctx.scale(t, t);
+      } else if (sticker.animation === 'rotate-3d') {
+        const t = Math.min(progress * 2.5, 1);
+        alpha = t;
+        const scaleX = Math.abs(Math.cos((1 - t) * Math.PI));
+        ctx.scale(scaleX, 1);
+      }
 
       // Camera movement
       if (sticker.cameraMovement && sticker.cameraMovement !== 'none') {
@@ -849,10 +1027,22 @@ export const PreviewPlayer = forwardRef<PreviewPlayerRef, PreviewPlayerProps>(({
       }
 
       ctx.globalAlpha = alpha;
-      ctx.font = `${size}px serif`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(sticker.emoji, 0, 0);
+      if (sticker.type === 'custom' && sticker.url) {
+        let img = stickerImagesRef.current.get(sticker.id);
+        if (!img) {
+          img = new Image();
+          img.src = sticker.url;
+          stickerImagesRef.current.set(sticker.id, img);
+        }
+        if (img.complete && img.naturalWidth > 0) {
+          ctx.drawImage(img, -size / 2, -size / 2, size, size);
+        }
+      } else {
+        ctx.font = `${size}px serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(sticker.emoji, 0, 0);
+      }
       ctx.restore();
     });
   }, []);

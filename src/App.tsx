@@ -77,7 +77,12 @@ function App() {
         transition: f.transition,
         transitionDuration: f.transitionDuration,
         text: f.text,
-        stickers: f.stickers,
+        stickers: f.stickers.map((st: any) => {
+          if (st.type === 'custom' && st.file) {
+            return { ...st, url: URL.createObjectURL(st.file) };
+          }
+          return st;
+        }),
         crop: f.crop,
         sfx
       };
@@ -93,6 +98,21 @@ function App() {
   const handleDiscardSession = async () => {
     await clearProject();
     setRestorableProject(null);
+  };
+
+  const handleReverseTimeline = () => {
+    if (frames.length < 2) return;
+    setFrames([...frames].reverse());
+  };
+
+  const handleBoomerangTimeline = () => {
+    if (frames.length < 2) return;
+    // Duplicate frames in reverse order excluding first and last to avoid stutter at loop point
+    const reversed = [...frames].reverse().slice(1, -1).map(f => ({
+      ...f,
+      id: crypto.randomUUID() // New IDs to avoid key conflicts
+    }));
+    setFrames([...frames, ...reversed]);
   };
 
   // Auto-save to IndexedDB with debounce
@@ -294,6 +314,8 @@ function App() {
           onVideoDismiss={() => setSelectedVideo(null)}
           audioTrack={audioTrack}
           audioVolume={audioVolume}
+          onReverseTimeline={handleReverseTimeline}
+          onBoomerangTimeline={handleBoomerangTimeline}
         />
       </div>
     </div>

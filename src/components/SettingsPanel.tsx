@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import type { RenderSettings, Resolution, OptimizationLevel, FrameImage } from '../types';
-import { Settings, Download, Video, Image as ImageIcon, Loader2, Gauge, Zap, Music, Trash2, Copyright } from 'lucide-react';
+import { Settings, Download, Video, Image as ImageIcon, Loader2, Gauge, Zap, Music, Trash2, Copyright, Mic, Square } from 'lucide-react';
 import { Uploader } from './Uploader';
 
 interface SettingsPanelProps {
@@ -58,6 +58,44 @@ export function SettingsPanel({
   frames,
 }: SettingsPanelProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+
+  const handleStartRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mediaRecorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          audioChunksRef.current.push(e.data);
+        }
+      };
+
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const file = new File([audioBlob], `Grabacion_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.webm`, { type: 'audio/webm' });
+        setAudioTrack(file);
+        stream.getTracks().forEach(track => track.stop());
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.error('Error al acceder al micrófono:', err);
+      alert('No se pudo acceder al micrófono. Por favor, revisa los permisos.');
+    }
+  };
+
+  const handleStopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+    }
+  };
 
   const getEstimatedSize = () => {
     if (frames.length === 0) return 0;
@@ -98,6 +136,11 @@ export function SettingsPanel({
       const bitsPerPixel = Math.log2(colors);
       const bytesPerFrame = (width * height * bitsPerPixel) / 8;
       
+      const estBytes = bytesPerFrame * totalFrames * compressionFactor;
+      return estBytes / (1024 * 1024);
+    } else if (settings.format === 'apng') {
+      const compressionFactor = 0.35;
+      const bytesPerFrame = width * height * 4;
       const estBytes = bytesPerFrame * totalFrames * compressionFactor;
       return estBytes / (1024 * 1024);
     } else if (settings.format === 'webp') {
@@ -150,39 +193,50 @@ export function SettingsPanel({
         {/* Output Format */}
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-3">Formato de Exportación</label>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-4 gap-1.5">
             <button
               onClick={() => setSettings(s => ({ ...s, format: 'gif' }))}
-              className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl border transition-all duration-300 cursor-pointer ${
+              className={`flex flex-col items-center justify-center py-2 px-0.5 rounded-xl border transition-all duration-300 cursor-pointer ${
                 settings.format === 'gif'
                   ? 'bg-cta/20 border-cta text-cta shadow-[0_0_15px_rgba(225,29,72,0.2)]'
                   : 'bg-dark-bg border-dark-border text-gray-400 hover:border-gray-500 hover:text-gray-300'
               }`}
             >
-              <ImageIcon size={18} className="mb-1" />
-              <span className="text-xs font-medium">GIF</span>
+              <ImageIcon size={16} className="mb-1" />
+              <span className="text-[10px] font-medium">GIF</span>
             </button>
             <button
               onClick={() => setSettings(s => ({ ...s, format: 'mp4' }))}
-              className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl border transition-all duration-300 cursor-pointer ${
+              className={`flex flex-col items-center justify-center py-2 px-0.5 rounded-xl border transition-all duration-300 cursor-pointer ${
                 settings.format === 'mp4'
                   ? 'bg-cta/20 border-cta text-cta shadow-[0_0_15px_rgba(225,29,72,0.2)]'
                   : 'bg-dark-bg border-dark-border text-gray-400 hover:border-gray-500 hover:text-gray-300'
               }`}
             >
-              <Video size={18} className="mb-1" />
-              <span className="text-xs font-medium">MP4</span>
+              <Video size={16} className="mb-1" />
+              <span className="text-[10px] font-medium">MP4</span>
             </button>
             <button
               onClick={() => setSettings(s => ({ ...s, format: 'webp' }))}
-              className={`flex flex-col items-center justify-center py-2 px-1 rounded-xl border transition-all duration-300 cursor-pointer ${
+              className={`flex flex-col items-center justify-center py-2 px-0.5 rounded-xl border transition-all duration-300 cursor-pointer ${
                 settings.format === 'webp'
                   ? 'bg-cta/20 border-cta text-cta shadow-[0_0_15px_rgba(225,29,72,0.2)]'
                   : 'bg-dark-bg border-dark-border text-gray-400 hover:border-gray-500 hover:text-gray-300'
               }`}
             >
-              <ImageIcon size={18} className="mb-1" />
-              <span className="text-xs font-medium">WebP</span>
+              <ImageIcon size={16} className="mb-1" />
+              <span className="text-[10px] font-medium">WebP</span>
+            </button>
+            <button
+              onClick={() => setSettings(s => ({ ...s, format: 'apng' }))}
+              className={`flex flex-col items-center justify-center py-2 px-0.5 rounded-xl border transition-all duration-300 cursor-pointer ${
+                settings.format === 'apng'
+                  ? 'bg-cta/20 border-cta text-cta shadow-[0_0_15px_rgba(225,29,72,0.2)]'
+                  : 'bg-dark-bg border-dark-border text-gray-400 hover:border-gray-500 hover:text-gray-300'
+              }`}
+            >
+              <ImageIcon size={16} className="mb-1" />
+              <span className="text-[10px] font-medium">APNG</span>
             </button>
           </div>
         </div>
@@ -338,20 +392,42 @@ export function SettingsPanel({
                 </div>
               </div>
             ) : (
-              <label className="flex flex-col items-center justify-center border border-dashed border-dark-border hover:border-gray-500 bg-dark-bg/30 hover:bg-dark-bg/50 rounded-xl p-4 transition-colors cursor-pointer text-center">
-                <Music size={20} className="text-gray-500 mb-1.5" />
-                <span className="text-[11px] text-gray-400 font-medium">Subir archivo de audio</span>
-                <span className="text-[9px] text-gray-600 mt-0.5">MP3, WAV, M4A, AAC</span>
-                <input
-                  type="file"
-                  accept="audio/*"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) setAudioTrack(file);
-                  }}
-                  className="hidden"
-                />
-              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="flex flex-col items-center justify-center border border-dashed border-dark-border hover:border-gray-500 bg-dark-bg/30 hover:bg-dark-bg/50 rounded-xl p-3 transition-colors cursor-pointer text-center">
+                  <Music size={18} className="text-gray-500 mb-1" />
+                  <span className="text-[10px] text-gray-400 font-medium">Subir Archivo</span>
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) setAudioTrack(file);
+                    }}
+                    className="hidden"
+                  />
+                </label>
+                
+                <button
+                  onClick={isRecording ? handleStopRecording : handleStartRecording}
+                  className={`flex flex-col items-center justify-center border border-dashed hover:border-gray-500 rounded-xl p-3 transition-colors cursor-pointer text-center
+                    ${isRecording 
+                      ? 'border-red-500 bg-red-500/10 hover:bg-red-500/20' 
+                      : 'border-dark-border bg-dark-bg/30 hover:bg-dark-bg/50'
+                    }`}
+                >
+                  {isRecording ? (
+                    <>
+                      <Square size={18} className="text-red-500 mb-1" />
+                      <span className="text-[10px] text-red-400 font-medium animate-pulse">Grabando... Parar</span>
+                    </>
+                  ) : (
+                    <>
+                      <Mic size={18} className="text-gray-500 mb-1 group-hover:text-amber-400" />
+                      <span className="text-[10px] text-gray-400 font-medium">Grabar Voz</span>
+                    </>
+                  )}
+                </button>
+              </div>
             )}
           </div>
         )}
