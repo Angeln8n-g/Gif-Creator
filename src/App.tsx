@@ -8,7 +8,8 @@ import { useGifExtractor } from './hooks/useGifExtractor';
 import { useBackgroundRemover } from './hooks/useBackgroundRemover';
 import { useIsPanelOpen } from './hooks/useIsPanelOpen';
 import { useHistoryState } from './hooks/useHistoryState';
-import { Film, Undo2, Redo2 } from 'lucide-react';
+import { Logo } from './components/Logo';
+import { Undo2, Redo2 } from 'lucide-react';
 
 function App() {
   const playerRef = useRef<PreviewPlayerRef>(null);
@@ -110,9 +111,7 @@ function App() {
       {/* Header */}
       <header className="mb-8 flex items-center justify-between">
         <div className="flex items-center space-x-3">
-          <div className="bg-cta p-2.5 rounded-xl shadow-lg shadow-cta/20 transition-transform hover:scale-105 duration-300">
-            <Film className="text-white" size={24} />
-          </div>
+          <Logo size={42} className="transition-transform hover:scale-105 duration-300 cursor-pointer" />
           <div>
             <h1 className="text-2xl font-bold text-light tracking-tight">GifCreatorPro</h1>
             <p className="text-sm text-gray-400 font-medium">Creador de GIF y Video Profesional</p>
