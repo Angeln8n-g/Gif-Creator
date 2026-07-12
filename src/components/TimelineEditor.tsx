@@ -52,6 +52,7 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef, onRe
   const [zoomLevel, setZoomLevel] = useState(100); // pixels per second
   const [isScrubbing, setIsScrubbing] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  let playheadOffset = 0;
 
   // ─── Effects Copy-Paste State ───────────────────────────────────────────────
   const [effectClipboard, setEffectClipboard] = useState<EffectClipboard | null>(null);
@@ -78,6 +79,48 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef, onRe
       return next;
     });
   }, [frames]);
+
+  // Translate vertical mouse wheel scroll to horizontal scroll over the timeline container
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        e.preventDefault();
+        el.scrollLeft += e.deltaY;
+      } else {
+        el.scrollLeft += e.deltaX;
+      }
+    };
+
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => {
+      el.removeEventListener('wheel', handleWheel);
+    };
+  }, []);
+
+  // Auto-scroll the timeline container to keep the playhead in view
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || currentTime === undefined) return;
+
+    const visibleWidth = el.clientWidth;
+    const scrollLeft = el.scrollLeft;
+    const padding = 100; // boundary padding in pixels
+
+    if (playheadOffset > scrollLeft + visibleWidth - padding) {
+      el.scrollTo({
+        left: playheadOffset - visibleWidth + padding,
+        behavior: isScrubbing ? 'auto' : 'smooth',
+      });
+    } else if (playheadOffset < scrollLeft + padding) {
+      el.scrollTo({
+        left: Math.max(0, playheadOffset - padding),
+        behavior: isScrubbing ? 'auto' : 'smooth',
+      });
+    }
+  }, [playheadOffset, currentTime, isScrubbing]);
 
   const handleSelect = useCallback((id: string, e?: React.MouseEvent) => {
     setSelectedIds((prev) => {
@@ -384,7 +427,7 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef, onRe
 
   if (frames.length === 0) return null;
 
-  let playheadOffset = 0;
+  playheadOffset = 0;
   let accumulatedTime = 0;
 
   if (currentTime !== undefined) {
