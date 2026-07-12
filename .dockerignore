@@ -18,9 +18,7 @@ yarn-error.log*
 .kiro
 
 # Excluir configuración de docker misma (opcional)
-Dockerfile
 .dockerignore
-nginx.conf
 
 # Excluir archivos de variables de entorno locales (seguridad)
 .env
