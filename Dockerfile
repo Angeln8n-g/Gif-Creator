@@ -1,11 +1,11 @@
 # ==========================================
 # Etapa 1: Construcción (Build Stage)
 # ==========================================
-# Usamos node:20-slim (basado en Debian) en lugar de alpine debido a que las
+# Usamos node:22-slim (basado en Debian) en lugar de alpine debido a que las
 # dependencias nativas de compilación (como @tailwindcss/oxide de Tailwind v4,
 # lightningcss y bindings de Rolldown/Vite) requieren la biblioteca glibc de Linux,
 # la cual no está presente por defecto en Alpine, evitando así errores de carga nativa.
-FROM node:20-slim AS build
+FROM node:22-slim AS build
 
 # Establecer el directorio de trabajo
 WORKDIR /app
