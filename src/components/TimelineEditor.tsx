@@ -36,6 +36,7 @@ import { PasteNotification } from './PasteNotification';
 import { applyEffectMask } from '../utils/effectHelpers';
 import { Layers, Clock, ArrowRightLeft, Repeat, ZoomIn, ZoomOut } from 'lucide-react';
 import type { PreviewPlayerRef } from './PreviewPlayer';
+import { FloatingWrapper } from './FloatingWrapper';
 
 interface TimelineEditorProps {
   frames: FrameImage[];
@@ -535,147 +536,158 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef, onRe
   return (
     <div className="flex flex-col space-y-6">
       
-      {/* Timeline Track */}
-      <div className="bg-dark-card border border-dark-border rounded-xl p-4 shadow-inner overflow-hidden">
-        <div className="flex items-center space-x-2 mb-4 text-gray-400">
-          <Layers size={18} />
-          <h3 className="text-sm font-medium">Timeline Principal</h3>
-          
-          <div className="flex items-center space-x-2 ml-4 bg-dark-bg/50 px-3 py-1.5 rounded-lg border border-dark-border/50">
-            <Clock size={14} className="text-gray-400" />
-            <span className="text-xs text-gray-400">Duración global:</span>
-            <input
-              type="number"
-              min="0.1"
-              step="0.1"
-              value={frames.length > 0 && frames.every(f => f.duration === frames[0].duration) ? frames[0].duration : ''}
-              onChange={(e) => {
-                const val = parseFloat(e.target.value);
-                if (val > 0) {
-                  setFrames(items => items.map(i => ({ ...i, duration: val })));
-                }
-              }}
-              className="w-14 bg-dark-card text-white text-xs text-center border border-dark-border rounded-md px-1 py-0.5 focus:outline-none focus:border-cta"
-              placeholder="--"
-            />
-            <span className="text-xs text-gray-400">s</span>
-          </div>
-
-          {/* Zoom Controls */}
-          <div className="flex items-center space-x-1.5 ml-4 bg-dark-bg/50 px-2.5 py-1 rounded-lg border border-dark-border/50 select-none">
-            <ZoomOut size={12} className="text-gray-500" />
-            <input
-              type="range"
-              min="50"
-              max="250"
-              step="10"
-              value={zoomLevel}
-              onChange={(e) => setZoomLevel(parseInt(e.target.value))}
-              className="w-16 h-1 bg-dark-card rounded-lg appearance-none cursor-pointer accent-cta"
-            />
-            <ZoomIn size={12} className="text-gray-500" />
-            <span className="text-[9px] text-gray-400 font-mono w-8 text-center">{zoomLevel}%</span>
-          </div>
-
-          <span className="text-xs px-2 py-0.5 bg-dark-bg rounded-md ml-auto">
-            Total: {frames.reduce((acc, f) => acc + f.duration, 0).toFixed(1)}s
-          </span>
-
-          {/* Reverse & Boomerang buttons */}
-          {frames.length >= 2 && (
-            <div className="flex items-center space-x-1.5 ml-2">
-              <button
-                onClick={onReverseTimeline}
-                title="Invertir Timeline"
-                className="flex items-center space-x-1 px-2 py-1 text-[10px] font-medium text-gray-400 hover:text-amber-400 bg-dark-bg hover:bg-dark-bg/80 border border-dark-border hover:border-amber-500/30 rounded-lg transition-all cursor-pointer"
-              >
-                <ArrowRightLeft size={12} />
-                <span>Invertir</span>
-              </button>
-              <button
-                onClick={onBoomerangTimeline}
-                title="Efecto Bumerán (Ping-Pong)"
-                className="flex items-center space-x-1 px-2 py-1 text-[10px] font-medium text-gray-400 hover:text-amber-400 bg-dark-bg hover:bg-dark-bg/80 border border-dark-border hover:border-amber-500/30 rounded-lg transition-all cursor-pointer"
-              >
-                <Repeat size={12} />
-                <span>Bumerán</span>
-              </button>
+      {/* Timeline Track (Floating Panel) */}
+      <FloatingWrapper
+        title="Línea de Tiempo Principal"
+        defaultFloating={true} // Floating by default!
+        width="880px"
+        themeColor="purple"
+        defaultPositionOffset={{
+          x: typeof window !== 'undefined' ? (window.innerWidth - 880) / 2 : 520,
+          y: typeof window !== 'undefined' ? window.innerHeight - 220 : 660,
+        }}
+      >
+        <div className="relative overflow-hidden p-1">
+          <div className="flex items-center space-x-2 mb-4 text-gray-400">
+            <Layers size={18} />
+            <h3 className="text-sm font-medium">Timeline Principal</h3>
+            
+            <div className="flex items-center space-x-2 ml-4 bg-dark-bg/50 px-3 py-1.5 rounded-lg border border-dark-border/50">
+              <Clock size={14} className="text-gray-400" />
+              <span className="text-xs text-gray-400">Duración global:</span>
+              <input
+                type="number"
+                min="0.1"
+                step="0.1"
+                value={frames.length > 0 && frames.every(f => f.duration === frames[0].duration) ? frames[0].duration : ''}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value);
+                  if (val > 0) {
+                    setFrames(items => items.map(i => ({ ...i, duration: val })));
+                  }
+                }}
+                className="w-14 bg-dark-card text-white text-xs text-center border border-dark-border rounded-md px-1 py-0.5 focus:outline-none focus:border-cta"
+                placeholder="--"
+              />
+              <span className="text-xs text-gray-400">s</span>
             </div>
-          )}
-        </div>
 
-        <div 
-          ref={containerRef}
-          className={`overflow-x-auto custom-scrollbar pb-4 relative cursor-pointer ${isScrubbing ? 'select-none touch-none' : ''}`}
-          onPointerDown={handlePointerDown}
-        >
-          {/* Timeline Ruler */}
-          <div className="flex space-x-2 min-w-max select-none text-[9px] font-mono text-gray-500 border-b border-dark-border/20 pb-1.5 mb-2.5 pr-12 pl-[1px]">
-            {frames.map((frame, index) => {
-              const width = Math.max(60, Math.min(800, frame.duration * zoomLevel));
-              let startTime = 0;
-              for (let i = 0; i < index; i++) {
-                startTime += frames[i].duration;
-              }
-              return (
-                <div 
-                  key={`ruler-${frame.id}`} 
-                  style={{ width: `${width}px` }} 
-                  className="relative pl-1 border-l border-dark-border/30 flex flex-col justify-between h-5"
+            {/* Zoom Controls */}
+            <div className="flex items-center space-x-1.5 ml-4 bg-dark-bg/50 px-2.5 py-1 rounded-lg border border-dark-border/50 select-none">
+              <ZoomOut size={12} className="text-gray-500" />
+              <input
+                type="range"
+                min="50"
+                max="250"
+                step="10"
+                value={zoomLevel}
+                onChange={(e) => setZoomLevel(parseInt(e.target.value))}
+                className="w-16 h-1 bg-dark-card rounded-lg appearance-none cursor-pointer accent-cta"
+              />
+              <ZoomIn size={12} className="text-gray-500" />
+              <span className="text-[9px] text-gray-400 font-mono w-8 text-center">{zoomLevel}%</span>
+            </div>
+
+            <span className="text-xs px-2 py-0.5 bg-dark-bg rounded-md ml-auto">
+              Total: {frames.reduce((acc, f) => acc + f.duration, 0).toFixed(1)}s
+            </span>
+
+            {/* Reverse & Boomerang buttons */}
+            {frames.length >= 2 && (
+              <div className="flex items-center space-x-1.5 ml-2">
+                <button
+                  onClick={onReverseTimeline}
+                  title="Invertir Timeline"
+                  className="flex items-center space-x-1 px-2 py-1 text-[10px] font-medium text-gray-400 hover:text-amber-400 bg-dark-bg hover:bg-dark-bg/80 border border-dark-border hover:border-amber-500/30 rounded-lg transition-all cursor-pointer"
                 >
-                  <span className="text-[9px] font-bold text-gray-400">{startTime.toFixed(1)}s</span>
-                  <div className="flex justify-between w-full h-1 pr-1 pointer-events-none">
-                    <div className="w-px h-1 bg-dark-border/35" />
-                    {width > 120 && <div className="w-px h-1 bg-dark-border/35" />}
-                    {width > 180 && <div className="w-px h-1 bg-dark-border/35" />}
-                    <div className="w-px h-1 bg-dark-border/35" />
-                  </div>
-                </div>
-              );
-            })}
+                  <ArrowRightLeft size={12} />
+                  <span>Invertir</span>
+                </button>
+                <button
+                  onClick={onBoomerangTimeline}
+                  title="Efecto Bumerán (Ping-Pong)"
+                  className="flex items-center space-x-1 px-2 py-1 text-[10px] font-medium text-gray-400 hover:text-amber-400 bg-dark-bg hover:bg-dark-bg/80 border border-dark-border hover:border-amber-500/30 rounded-lg transition-all cursor-pointer"
+                >
+                  <Repeat size={12} />
+                  <span>Bumerán</span>
+                </button>
+              </div>
+            )}
           </div>
 
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
+          <div 
+            ref={containerRef}
+            className={`overflow-x-auto custom-scrollbar pb-6 mb-2 relative cursor-pointer ${isScrubbing ? 'select-none touch-none' : ''}`}
+            onPointerDown={handlePointerDown}
           >
-            <SortableContext items={frames.map(f => f.id)} strategy={horizontalListSortingStrategy}>
-              <div className="flex space-x-2 min-w-max items-center relative">
-                {frames.map((frame, index) => (
-                  <TimelineItem
-                    key={frame.id}
-                    frame={frame}
-                    index={index}
-                    isSelected={selectedIds.has(frame.id)}
-                    onSelect={handleSelect}
-                    onDurationChange={handleDurationChange}
-                    isSource={effectClipboard?.sourceFrameId === frame.id}
-                    isTarget={targetFrameIds.has(frame.id)}
-                    canPaste={effectClipboard !== null && effectClipboard.sourceFrameId !== frame.id}
-                    effectMask={effectMask}
-                    onCopyEffects={copyEffects}
-                    onPasteEffects={pasteToFrame}
-                    onToggleTarget={toggleTargetFrame}
-                    zoom={zoomLevel}
-                  />
-                ))}
-                
-                {currentTime !== undefined && (
+            {/* Timeline Ruler */}
+            <div className="flex space-x-2 min-w-max select-none text-[9px] font-mono text-gray-500 border-b border-dark-border/20 pb-1.5 mb-2.5 pr-12 pl-[1px]">
+              {frames.map((frame, index) => {
+                const width = Math.max(60, Math.min(800, frame.duration * zoomLevel));
+                let startTime = 0;
+                for (let i = 0; i < index; i++) {
+                  startTime += frames[i].duration;
+                }
+                return (
                   <div 
-                    className="absolute top-[-28px] bottom-0 w-0.5 bg-cta z-50 pointer-events-none shadow-[0_0_8px_rgba(255,42,95,0.8)]"
-                    style={{ left: `${playheadOffset}px` }}
+                    key={`ruler-${frame.id}`} 
+                    style={{ width: `${width}px` }} 
+                    className="relative pl-1 border-l border-dark-border/30 flex flex-col justify-between h-5"
                   >
-                    <div className="absolute -top-1 -left-1.5 w-3.5 h-3.5 bg-cta rounded-full shadow-[0_0_6px_rgba(255,42,95,1)] flex items-center justify-center">
-                      <div className="w-1.5 h-1.5 bg-white rounded-full" />
+                    <span className="text-[9px] font-bold text-gray-400">{startTime.toFixed(1)}s</span>
+                    <div className="flex justify-between w-full h-1 pr-1 pointer-events-none">
+                      <div className="w-px h-1 bg-dark-border/35" />
+                      {width > 120 && <div className="w-px h-1 bg-dark-border/35" />}
+                      {width > 180 && <div className="w-px h-1 bg-dark-border/35" />}
+                      <div className="w-px h-1 bg-dark-border/35" />
                     </div>
                   </div>
-                )}
-              </div>
-            </SortableContext>
-          </DndContext>
+                );
+              })}
+            </div>
+
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext items={frames.map(f => f.id)} strategy={horizontalListSortingStrategy}>
+                <div className="flex space-x-2 min-w-max items-center relative">
+                  {frames.map((frame, index) => (
+                    <TimelineItem
+                      key={frame.id}
+                      frame={frame}
+                      index={index}
+                      isSelected={selectedIds.has(frame.id)}
+                      onSelect={handleSelect}
+                      onDurationChange={handleDurationChange}
+                      isSource={effectClipboard?.sourceFrameId === frame.id}
+                      isTarget={targetFrameIds.has(frame.id)}
+                      canPaste={effectClipboard !== null && effectClipboard.sourceFrameId !== frame.id}
+                      effectMask={effectMask}
+                      onCopyEffects={copyEffects}
+                      onPasteEffects={pasteToFrame}
+                      onToggleTarget={toggleTargetFrame}
+                      zoom={zoomLevel}
+                    />
+                  ))}
+                  
+                  {currentTime !== undefined && (
+                    <div 
+                      className="absolute top-[-28px] bottom-0 w-0.5 bg-cta z-50 pointer-events-none shadow-[0_0_8px_rgba(255,42,95,0.8)]"
+                      style={{ left: `${playheadOffset}px` }}
+                    >
+                      <div className="absolute -top-1 -left-1.5 w-3.5 h-3.5 bg-cta rounded-full shadow-[0_0_6px_rgba(255,42,95,1)] flex items-center justify-center">
+                        <div className="w-1.5 h-1.5 bg-white rounded-full" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </SortableContext>
+            </DndContext>
+          </div>
         </div>
-      </div>
+      </FloatingWrapper>
 
       {/* Copy Effects Menu */}
       {showCopyMenu && effectClipboard && (
