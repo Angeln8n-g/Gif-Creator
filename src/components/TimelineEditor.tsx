@@ -534,7 +534,7 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef, onRe
   }, [isScrubbing, frames, playerRef]);
 
   return (
-    <div className="flex flex-col space-y-6">
+    <div className="flex flex-col space-y-6 w-full max-w-full overflow-hidden">
       
       {/* Timeline Track (Floating Panel) */}
       <FloatingWrapper
@@ -542,6 +542,7 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef, onRe
         defaultFloating={true} // Floating by default!
         width="880px"
         themeColor="purple"
+        className="w-full max-w-full overflow-hidden"
         defaultPositionOffset={{
           x: typeof window !== 'undefined' ? (window.innerWidth - 880) / 2 : 520,
           y: typeof window !== 'undefined' ? window.innerHeight - 220 : 660,
@@ -617,7 +618,7 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef, onRe
 
           <div 
             ref={containerRef}
-            className={`overflow-x-auto custom-scrollbar pb-6 mb-2 relative cursor-pointer ${isScrubbing ? 'select-none touch-none' : ''}`}
+            className={`w-full max-w-full overflow-x-auto custom-scrollbar pb-6 mb-2 relative cursor-pointer ${isScrubbing ? 'select-none touch-none' : ''}`}
             onPointerDown={handlePointerDown}
           >
             {/* Timeline Ruler */}
