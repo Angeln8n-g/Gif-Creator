@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import type { FrameImage, CropSettings } from '../types';
-import { Play, Pause, SkipBack, SkipForward } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, GripHorizontal, Minimize2, Maximize2, Pin, PinOff, RotateCcw } from 'lucide-react';
 
 // Easing helpers
 function easeInOut(t: number): number {
@@ -320,6 +320,91 @@ export const PreviewPlayer = forwardRef<PreviewPlayerRef, PreviewPlayerProps>(({
     }
   }, [externalIsPlaying, isPlaying, onPlayStateChange]);
   const [currentFrame, setCurrentFrame] = useState(0);
+
+  // Floating Window States
+  const [isFloating, setIsFloating] = useState(true);
+  const [isMinimized, setIsMinimized] = useState(false);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [hasPositioned, setHasPositioned] = useState(false);
+  const dragStartRef = useRef({ x: 0, y: 0 });
+  const positionStartRef = useRef({ x: 0, y: 0 });
+
+  // Check if screen is mobile size
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Set initial position once window size is known (on client side)
+  useEffect(() => {
+    if (isFloating && !hasPositioned && !isMobile) {
+      const initialX = Math.max(20, window.innerWidth - 720);
+      const initialY = 100;
+      setPosition({ x: initialX, y: initialY });
+      setHasPositioned(true);
+    }
+  }, [isFloating, hasPositioned, isMobile]);
+
+  // Adjust position if window is resized to keep it in viewport
+  useEffect(() => {
+    if (!isFloating || isMobile) return;
+    const handleResize = () => {
+      setPosition(prev => {
+        const width = 680;
+        const newX = Math.max(10 - width / 2, Math.min(window.innerWidth - width / 2, prev.x));
+        const newY = Math.max(10, Math.min(window.innerHeight - 80, prev.y));
+        return { x: newX, y: newY };
+      });
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [isFloating, isMobile]);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isFloating || isMobile) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('input') || target.closest('select')) {
+      return;
+    }
+    setIsDragging(true);
+    dragStartRef.current = { x: e.clientX, y: e.clientY };
+    positionStartRef.current = { ...position };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    const dx = e.clientX - dragStartRef.current.x;
+    const dy = e.clientY - dragStartRef.current.y;
+    
+    let newX = positionStartRef.current.x + dx;
+    let newY = positionStartRef.current.y + dy;
+    
+    const width = 680;
+    newX = Math.max(10 - width / 2, Math.min(window.innerWidth - width / 2, newX));
+    newY = Math.max(10, Math.min(window.innerHeight - 80, newY));
+    
+    setPosition({ x: newX, y: newY });
+  };
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isDragging) {
+      setIsDragging(false);
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+  };
+
+  const resetPosition = () => {
+    const initialX = Math.max(20, window.innerWidth - 720);
+    const initialY = 100;
+    setPosition({ x: initialX, y: initialY });
+  };
   const frameProgressRef = useRef(0);
   const animRef = useRef<number>(0);
   const lastTimeRef = useRef<number>(0);
@@ -1189,7 +1274,7 @@ export const PreviewPlayer = forwardRef<PreviewPlayerRef, PreviewPlayerProps>(({
     return () => {
       if (animRef.current) cancelAnimationFrame(animRef.current);
     };
-  }, [isPlaying, frames, globalSpeed, applyAnimation, applyTransition, drawText, drawStickers]);
+  }, [isPlaying, frames, globalSpeed, applyAnimation, applyTransition, drawText, drawStickers, isMinimized]);
 
   // Draw static frame when not playing
   useEffect(() => {
@@ -1221,7 +1306,7 @@ export const PreviewPlayer = forwardRef<PreviewPlayerRef, PreviewPlayerProps>(({
     } else if (img) {
       img.onload = draw;
     }
-  }, [isPlaying, currentFrame, frames, drawText, drawStickers]);
+  }, [isPlaying, currentFrame, frames, drawText, drawStickers, isMinimized]);
 
   const goToFrame = (index: number) => {
     const clamped = Math.max(0, Math.min(frames.length - 1, index));
@@ -1240,77 +1325,173 @@ export const PreviewPlayer = forwardRef<PreviewPlayerRef, PreviewPlayerProps>(({
 
   if (frames.length === 0) return null;
 
+  const floatingStyle: React.CSSProperties = isFloating
+    ? isMobile
+      ? {
+          position: 'fixed',
+          bottom: '16px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: '92vw',
+          zIndex: 50,
+          margin: 0,
+        }
+      : {
+          position: 'fixed',
+          left: `${position.x}px`,
+          top: `${position.y}px`,
+          width: '680px',
+          zIndex: 50,
+          margin: 0,
+        }
+    : {};
+
   return (
-    <div className="bg-dark-card border border-dark-border rounded-2xl overflow-hidden shadow-xl shadow-black/40">
-      <div className="p-4 border-b border-dark-border">
-        <h3 className="text-lg font-medium text-white flex items-center gap-2">
-          <Play size={18} className="text-cta" />
-          Vista Previa
-        </h3>
+    <div
+      style={floatingStyle}
+      className={`bg-dark-card border border-dark-border rounded-2xl overflow-hidden shadow-xl shadow-black/40 ${
+        isFloating
+          ? 'shadow-2xl shadow-black/70 border-cta/30 ring-1 ring-cta/10 backdrop-blur-md bg-dark-card/95'
+          : ''
+      }`}
+    >
+      {/* Header (Acts as drag handle if floating on desktop) */}
+      <div
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        className={`p-4 border-b border-dark-border flex items-center justify-between select-none ${
+          isFloating && !isMobile ? 'cursor-grab active:cursor-grabbing hover:bg-dark-border/10' : ''
+        }`}
+      >
+        <div className="flex items-center gap-2">
+          {isFloating && !isMobile && <GripHorizontal size={18} className="text-gray-500" />}
+          <h3 className="text-lg font-medium text-white flex items-center gap-2">
+            <Play size={18} className="text-cta" />
+            Vista Previa
+            {isFloating && <span className="text-xs text-gray-500 font-normal">({isMobile ? 'Flotante' : 'Arrastrable'})</span>}
+          </h3>
+        </div>
+
+        {/* Floating Controls Header */}
+        <div className="flex items-center gap-2" onPointerDown={(e) => e.stopPropagation()}>
+          {/* Play/Pause icon shown only when minimized */}
+          {isMinimized && (
+            <button
+              onClick={() => {
+                setIsPlaying(!isPlaying);
+                if (!isPlaying) lastTimeRef.current = 0;
+              }}
+              title={isPlaying ? "Pausar" : "Reproducir"}
+              className={`p-1.5 rounded-lg transition-all duration-200 cursor-pointer ${
+                isPlaying ? 'text-cta hover:bg-cta/10' : 'text-gray-400 hover:text-light hover:bg-dark-bg'
+              }`}
+            >
+              {isPlaying ? <Pause size={16} /> : <Play size={16} />}
+            </button>
+          )}
+
+          {/* Reset position button */}
+          {isFloating && !isMobile && (
+            <button
+              onClick={resetPosition}
+              title="Restablecer posición"
+              className="p-1.5 rounded-lg text-gray-400 hover:text-light hover:bg-dark-bg transition-all duration-200 cursor-pointer"
+            >
+              <RotateCcw size={16} />
+            </button>
+          )}
+
+          {/* Pin/Unpin float button */}
+          <button
+            onClick={() => setIsFloating(!isFloating)}
+            title={isFloating ? "Acoplar a la cuadrícula" : "Hacer ventana flotante"}
+            className={`p-1.5 rounded-lg transition-all duration-200 cursor-pointer ${
+              isFloating
+                ? 'text-cta hover:bg-cta/10'
+                : 'text-gray-400 hover:text-light hover:bg-dark-bg'
+            }`}
+          >
+            {isFloating ? <PinOff size={16} /> : <Pin size={16} />}
+          </button>
+
+          {/* Minimize/Maximize button */}
+          <button
+            onClick={() => setIsMinimized(!isMinimized)}
+            title={isMinimized ? "Maximizar reproductor" : "Minimizar reproductor"}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-light hover:bg-dark-bg transition-all duration-200 cursor-pointer"
+          >
+            {isMinimized ? <Maximize2 size={16} /> : <Minimize2 size={16} />}
+          </button>
+        </div>
       </div>
 
       {/* Canvas */}
-      <div className="relative bg-black flex items-center justify-center p-4">
-        <canvas
-          ref={canvasRef}
-          width={640}
-          height={360}
-          className="w-full max-w-[640px] rounded-lg border border-dark-border/50"
-        />
-      </div>
+      {!isMinimized && (
+        <div className="relative bg-black flex items-center justify-center p-4">
+          <canvas
+            ref={canvasRef}
+            width={640}
+            height={360}
+            className="w-full max-w-[640px] rounded-lg border border-dark-border/50"
+          />
+        </div>
+      )}
 
       {/* Controls */}
-      <div className="p-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div className="flex items-center gap-2 w-full sm:w-auto justify-center sm:justify-start">
-          <button
-            onClick={() => goToFrame(currentFrame - 1)}
-            disabled={frames.length <= 1}
-            className="p-2 rounded-lg bg-dark-bg border border-dark-border text-gray-400 hover:text-light transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            <SkipBack size={16} />
-          </button>
-          <button
-            onClick={() => {
-              setIsPlaying(!isPlaying);
-              if (!isPlaying) {
-                lastTimeRef.current = 0;
-              }
-            }}
-            className={`p-3 rounded-xl transition-all cursor-pointer ${
-              isPlaying
-                ? 'bg-cta text-white shadow-lg shadow-cta/30'
-                : 'bg-dark-bg border border-dark-border text-gray-400 hover:text-light hover:border-cta/50'
-            }`}
-          >
-            {isPlaying ? <Pause size={18} /> : <Play size={18} />}
-          </button>
-          <button
-            onClick={() => goToFrame(currentFrame + 1)}
-            disabled={frames.length <= 1}
-            className="p-2 rounded-lg bg-dark-bg border border-dark-border text-gray-400 hover:text-light transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            <SkipForward size={16} />
-          </button>
-        </div>
+      {!isMinimized && (
+        <div className="p-4 flex flex-col sm:flex-row items-center justify-between gap-4 border-t border-dark-border/20">
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-center sm:justify-start">
+            <button
+              onClick={() => goToFrame(currentFrame - 1)}
+              disabled={frames.length <= 1}
+              className="p-2 rounded-lg bg-dark-bg border border-dark-border text-gray-400 hover:text-light transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <SkipBack size={16} />
+            </button>
+            <button
+              onClick={() => {
+                setIsPlaying(!isPlaying);
+                if (!isPlaying) {
+                  lastTimeRef.current = 0;
+                }
+              }}
+              className={`p-3 rounded-xl transition-all cursor-pointer ${
+                isPlaying
+                  ? 'bg-cta text-white shadow-lg shadow-cta/30'
+                  : 'bg-dark-bg border border-dark-border text-gray-400 hover:text-light hover:border-cta/50'
+              }`}
+            >
+              {isPlaying ? <Pause size={18} /> : <Play size={18} />}
+            </button>
+            <button
+              onClick={() => goToFrame(currentFrame + 1)}
+              disabled={frames.length <= 1}
+              className="p-2 rounded-lg bg-dark-bg border border-dark-border text-gray-400 hover:text-light transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <SkipForward size={16} />
+            </button>
+          </div>
 
-        {/* Frame indicator */}
-        <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
-          <span className="text-xs text-gray-400 whitespace-nowrap">
-            Frame <span className="text-cta font-mono font-medium">{currentFrame + 1}</span> / {frames.length}
-          </span>
-          <div className="flex gap-1 overflow-x-auto custom-scrollbar max-w-full sm:max-w-[200px] pb-1 sm:pb-0 scroll-smooth">
-            {frames.map((_, i) => (
-              <button
-                key={i}
-                onClick={() => goToFrame(i)}
-                className={`w-2 h-2 rounded-full transition-all cursor-pointer ${
-                  i === currentFrame ? 'bg-cta scale-125' : 'bg-dark-border hover:bg-gray-500'
-                }`}
-              />
-            ))}
+          {/* Frame indicator */}
+          <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+            <span className="text-xs text-gray-400 whitespace-nowrap">
+              Frame <span className="text-cta font-mono font-medium">{currentFrame + 1}</span> / {frames.length}
+            </span>
+            <div className="flex gap-1 overflow-x-auto custom-scrollbar max-w-full sm:max-w-[200px] pb-1 sm:pb-0 scroll-smooth">
+              {frames.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => goToFrame(i)}
+                  className={`w-2 h-2 rounded-full transition-all cursor-pointer ${
+                    i === currentFrame ? 'bg-cta scale-125' : 'bg-dark-border hover:bg-gray-500'
+                  }`}
+                />
+              ))}
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 });

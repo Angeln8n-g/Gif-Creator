@@ -4,6 +4,7 @@ import {
   ArrowUpFromLine, ArrowDownFromLine, PanelLeft, PanelRight,
   Moon, Sun, ZoomIn, ZoomOut, PanelTop, PanelBottom
 } from 'lucide-react';
+import { FloatingWrapper } from './FloatingWrapper';
 
 const transitions: { value: TransitionType; label: string; icon: React.ReactNode }[] = [
   { value: 'none', label: 'Ninguna', icon: <Ban size={14} /> },
@@ -31,8 +32,13 @@ interface TransitionPickerProps {
 
 export function TransitionPicker({ value, duration, onChange, onDurationChange }: TransitionPickerProps) {
   return (
-    <div>
-      <label className="block text-xs font-medium text-gray-400 mb-1.5">Transición al siguiente</label>
+    <FloatingWrapper
+      title="Transición al siguiente"
+      defaultFloating={false} // Docked by default
+      width="340px"
+      themeColor="purple"
+      defaultPositionOffset={{ x: 380, y: 180 }}
+    >
       <div className="grid grid-cols-4 gap-1">
         {transitions.map((t) => (
           <button
@@ -64,6 +70,6 @@ export function TransitionPicker({ value, duration, onChange, onDurationChange }
           <span className="text-[10px] font-mono text-purple-400 w-8 text-right">{duration}s</span>
         </div>
       )}
-    </div>
+    </FloatingWrapper>
   );
 }
