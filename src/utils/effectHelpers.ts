@@ -9,7 +9,8 @@ import type { EffectCategory, EffectClipboard, EffectMask, FrameImage } from '..
  * - stickers  : frame.stickers.length > 0
  * - crop      : frame.crop exists and crop.shape !== 'none'
  */
-export function hasEffect(frame: FrameImage, cat: EffectCategory): boolean {
+export function hasEffect(frame: FrameImage | undefined | null, cat: EffectCategory): boolean {
+  if (!frame) return false;
   switch (cat) {
     case 'animation':
       return frame.animation !== 'none';

@@ -11,6 +11,8 @@ import { useHistoryState } from './hooks/useHistoryState';
 import { Logo } from './components/Logo';
 import { Undo2, Redo2 } from 'lucide-react';
 import { saveProject, loadProject, clearProject, type SavedProject } from './services/indexedDb';
+import { OnboardingTour } from './components/OnboardingTour';
+import { RenderProgressModal } from './components/RenderProgressModal';
 
 function App() {
   const playerRef = useRef<PreviewPlayerRef>(null);
@@ -38,8 +40,21 @@ function App() {
   const [restorableProject, setRestorableProject] = useState<SavedProject | null>(null);
 
   const [isPanelOpen, togglePanel] = useIsPanelOpen();
+  const [runTour, setRunTour] = useState(false);
 
   const { loaded, loadProgress, rendering, progress, renderMedia } = useFFmpeg();
+
+  useEffect(() => {
+    const hasSeenTour = localStorage.getItem('gifCreatorHasSeenTour');
+    if (!hasSeenTour) {
+      setRunTour(true);
+    }
+  }, []);
+
+  const handleTourFinish = () => {
+    localStorage.setItem('gifCreatorHasSeenTour', 'true');
+    setRunTour(false);
+  };
 
   // Check for saved project on mount
   useEffect(() => {
@@ -205,7 +220,17 @@ function App() {
   };
 
   return (
-    <div className="min-h-screen p-4 md:p-8 flex flex-col">
+    <div className="min-h-screen p-4 md:p-8 flex flex-col relative">
+      <OnboardingTour run={runTour} onFinish={handleTourFinish} />
+      
+      <RenderProgressModal
+        isRendering={rendering}
+        progress={progress}
+        ffmpegLoadProgress={loadProgress}
+        isFfmpegLoaded={loaded}
+        settings={settings}
+      />
+
       {/* Header */}
       <header className="mb-8 flex items-center justify-between">
         <div className="flex items-center space-x-3">

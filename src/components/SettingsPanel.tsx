@@ -44,7 +44,6 @@ export function SettingsPanel({
   setSettings,
   onGenerate,
   isRendering,
-  progress,
   hasFrames,
   isFfmpegLoaded,
   ffmpegLoadProgress,
@@ -177,7 +176,7 @@ export function SettingsPanel({
   };
   
   return (
-    <div className="bg-dark-card border border-dark-border rounded-2xl p-6 flex flex-col h-full shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
+    <div className="tour-settings bg-dark-card border border-dark-border rounded-2xl p-6 flex flex-col h-full shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
       <div className="flex items-center space-x-2 mb-6">
         <Settings className="text-cta" />
         <h2 className="text-xl font-semibold text-white tracking-tight">Ajustes</h2>
@@ -604,20 +603,15 @@ export function SettingsPanel({
         )}
       </div>
 
-      <div className="mt-8 pt-6 border-t border-dark-border">
+      <div className="tour-generate mt-8 pt-6 border-t border-dark-border">
         {isRendering ? (
-          <div className="space-y-3">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-400">Procesando medios...</span>
-              <span className="text-cta font-mono font-medium">{progress}%</span>
-            </div>
-            <div className="w-full bg-dark-bg rounded-full h-2.5 overflow-hidden border border-dark-border/50">
-              <div 
-                className="bg-cta h-full rounded-full transition-all duration-300 ease-out shadow-[0_0_10px_rgba(225,29,72,0.5)]"
-                style={{ width: `${progress}%` }}
-              ></div>
-            </div>
-          </div>
+          <button
+            disabled
+            className="w-full py-4 rounded-xl font-semibold flex items-center justify-center space-x-2 bg-cta/50 text-white/70 cursor-not-allowed border border-white/10"
+          >
+            <Loader2 size={20} className="animate-spin" />
+            <span>Exportando...</span>
+          </button>
         ) : (
           <button
             onClick={onGenerate}

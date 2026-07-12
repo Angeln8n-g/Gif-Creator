@@ -3,6 +3,7 @@ import type { FrameImage, RenderSettings } from '../types';
 import { PreviewPlayer, type PreviewPlayerRef } from './PreviewPlayer';
 import { VideoTrimmer } from './VideoTrimmer';
 import { TimelineEditor } from './TimelineEditor';
+import { AudioWaveform } from './AudioWaveform';
 import type React from 'react';
 
 interface CanvasWorkspaceProps {
@@ -176,7 +177,7 @@ export function CanvasWorkspace({
 
       {/* ── Timeline / Gallery ── shown below canvas when frames exist */}
       {frames.length > 0 && (
-        <div className="bg-dark-card border border-dark-border rounded-2xl overflow-hidden">
+        <div className="tour-timeline bg-dark-card border border-dark-border rounded-2xl overflow-hidden">
           {/* Gallery header with action buttons */}
           <div className="p-4 border-b border-dark-border flex justify-between items-center">
             <h3 className="text-lg font-medium text-white flex items-center space-x-2">
@@ -226,6 +227,14 @@ export function CanvasWorkspace({
             playerRef={playerRef}
             onReverseTimeline={onReverseTimeline}
             onBoomerangTimeline={onBoomerangTimeline}
+          />
+          
+          <AudioWaveform
+            audioTrack={audioTrack}
+            audioVolume={audioVolume}
+            isPlaying={isPlaying}
+            currentTime={currentTime}
+            totalDuration={frames.reduce((acc, f) => acc + f.duration, 0)}
           />
         </div>
       )}

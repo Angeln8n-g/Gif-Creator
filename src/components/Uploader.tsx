@@ -51,7 +51,7 @@ export function Uploader({ onUpload, onVideoSelect, onGifSelect }: UploaderProps
   });
 
   return (
-    <div className="space-y-3">
+    <div className="tour-upload space-y-3">
       <div
         {...getRootProps()}
         className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all duration-300

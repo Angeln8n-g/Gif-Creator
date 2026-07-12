@@ -592,7 +592,11 @@ export function FramePreviewCanvas({
         isDraggingRef.current = true;
         dragTargetRef.current = { type: 'text' };
         setCursorStyle('grabbing');
-        canvas.setPointerCapture(e.pointerId);
+        try {
+          canvas.setPointerCapture(e.pointerId);
+        } catch (err) {
+          console.warn("Failed to set pointer capture:", err);
+        }
         return;
       }
     }
@@ -610,7 +614,11 @@ export function FramePreviewCanvas({
           isDraggingRef.current = true;
           dragTargetRef.current = { type: 'sticker', id: sticker.id };
           setCursorStyle('grabbing');
-          canvas.setPointerCapture(e.pointerId);
+          try {
+            canvas.setPointerCapture(e.pointerId);
+          } catch (err) {
+            console.warn("Failed to set pointer capture:", err);
+          }
           return;
         }
       }
