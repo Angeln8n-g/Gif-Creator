@@ -10,7 +10,7 @@ interface VideoTrimmerProps {
 }
 
 export function VideoTrimmer({ file, onExtract, onCancel }: VideoTrimmerProps) {
-  const [videoUrl] = useState(() => URL.createObjectURL(file));
+  const [videoUrl, setVideoUrl] = useState('');
   const videoRef = useRef<HTMLVideoElement>(null);
   
   const [duration, setDuration] = useState(0);
@@ -25,10 +25,12 @@ export function VideoTrimmer({ file, onExtract, onCancel }: VideoTrimmerProps) {
   const { extractVideoFrames } = useMediaExtractor();
 
   useEffect(() => {
+    const url = URL.createObjectURL(file);
+    setVideoUrl(url);
     return () => {
-      URL.revokeObjectURL(videoUrl);
+      URL.revokeObjectURL(url);
     };
-  }, [videoUrl]);
+  }, [file]);
 
   const handleLoadedMetadata = () => {
     if (videoRef.current) {
@@ -117,14 +119,16 @@ export function VideoTrimmer({ file, onExtract, onCancel }: VideoTrimmerProps) {
         <div className="p-6 space-y-6">
           {/* Video Preview */}
           <div className="relative bg-black rounded-xl overflow-hidden aspect-video flex items-center justify-center border border-dark-border/50">
-            <video
-              ref={videoRef}
-              src={videoUrl}
-              onLoadedMetadata={handleLoadedMetadata}
-              onTimeUpdate={handleTimeUpdate}
-              onEnded={() => setIsPlaying(false)}
-              className="max-h-full max-w-full"
-            />
+            {videoUrl && (
+              <video
+                ref={videoRef}
+                src={videoUrl}
+                onLoadedMetadata={handleLoadedMetadata}
+                onTimeUpdate={handleTimeUpdate}
+                onEnded={() => setIsPlaying(false)}
+                className="max-h-full max-w-full"
+              />
+            )}
             <button
               onClick={togglePlay}
               className="absolute inset-0 w-full h-full flex items-center justify-center bg-black/20 hover:bg-black/40 transition-colors opacity-0 hover:opacity-100 group cursor-pointer"
