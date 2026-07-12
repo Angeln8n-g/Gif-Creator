@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import { generateId } from '../utils/generateId';
 import { useDropzone } from 'react-dropzone';
 import { UploadCloud, Camera } from 'lucide-react';
 import type { FrameImage } from '../types';
@@ -30,7 +31,7 @@ export function Uploader({ onUpload, onVideoSelect, onGifSelect }: UploaderProps
 
     // Otherwise standard static image upload
     const newFrames: FrameImage[] = acceptedFiles.map((file) => ({
-      id: crypto.randomUUID(),
+      id: generateId(),
       file,
       previewUrl: URL.createObjectURL(file),
       duration: 1.0,

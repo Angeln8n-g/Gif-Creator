@@ -13,6 +13,7 @@ import { Undo2, Redo2 } from 'lucide-react';
 import { saveProject, loadProject, clearProject, type SavedProject } from './services/indexedDb';
 import { OnboardingTour } from './components/OnboardingTour';
 import { RenderProgressModal } from './components/RenderProgressModal';
+import { generateId } from './utils/generateId';
 
 function App() {
   const playerRef = useRef<PreviewPlayerRef>(null);
@@ -125,7 +126,7 @@ function App() {
     // Duplicate frames in reverse order excluding first and last to avoid stutter at loop point
     const reversed = [...frames].reverse().slice(1, -1).map(f => ({
       ...f,
-      id: crypto.randomUUID() // New IDs to avoid key conflicts
+      id: generateId() // New IDs to avoid key conflicts
     }));
     setFrames([...frames, ...reversed]);
   };

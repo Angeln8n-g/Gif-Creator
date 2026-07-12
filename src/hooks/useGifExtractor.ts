@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import type { FrameImage } from '../types';
+import { generateId } from '../utils/generateId';
 
 export function useGifExtractor() {
   const extractGifFrames = useCallback(async (
@@ -45,7 +46,7 @@ export function useGifExtractor() {
           if (blob) {
             const frameFile = new File([blob], `frame_${frameIndex}.png`, { type: 'image/png' });
             frames.push({
-              id: crypto.randomUUID(),
+              id: generateId(),
               file: frameFile,
               previewUrl: URL.createObjectURL(blob),
               // duration is in microseconds, convert to seconds

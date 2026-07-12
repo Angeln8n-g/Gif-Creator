@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { generateId } from '../utils/generateId';
 import type { StickerOverlay, TextAnimation } from '../types';
 import { X, Move, RotateCw, Upload } from 'lucide-react';
 import { AnimationPicker } from './AnimationPicker';
@@ -47,7 +48,7 @@ export function StickerPicker({ stickers, onChange }: StickerPickerProps) {
 
   const addSticker = (emoji: string) => {
     const newSticker: StickerOverlay = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       emoji,
       x: 50,
       y: 50,
@@ -64,7 +65,7 @@ export function StickerPicker({ stickers, onChange }: StickerPickerProps) {
     const file = e.target.files?.[0];
     if (!file) return;
     const newSticker: StickerOverlay = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       emoji: '🖼️',
       x: 50,
       y: 50,

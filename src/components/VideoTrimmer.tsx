@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Scissors, Play, Pause, Loader2 } from 'lucide-react';
 import { useMediaExtractor } from '../hooks/useMediaExtractor';
 import type { FrameImage } from '../types';
+import { generateId } from '../utils/generateId';
 
 interface VideoTrimmerProps {
   file: File;
@@ -78,7 +79,7 @@ export function VideoTrimmer({ file, onExtract, onCancel }: VideoTrimmerProps) {
 
       const frameDuration = 1 / fps;
       const newFrames: FrameImage[] = extracted.map(e => ({
-        id: crypto.randomUUID(),
+        id: generateId(),
         file: e.file,
         previewUrl: e.previewUrl,
         duration: frameDuration,
