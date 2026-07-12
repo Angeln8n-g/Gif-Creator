@@ -162,7 +162,7 @@ export function FloatingWrapper({
   const element = (
     <div
       style={floatingStyle}
-      className={`bg-dark-card border border-dark-border rounded-2xl overflow-hidden shadow-xl shadow-black/40 ${
+      className={`bg-dark-card border border-dark-border rounded-2xl overflow-hidden shadow-xl shadow-black/40 w-full max-w-full min-w-0 ${
         isFloating
           ? `shadow-2xl shadow-black/70 ring-1 backdrop-blur-md bg-dark-card/95 ${themeColors.border}`
           : ''
@@ -222,7 +222,7 @@ export function FloatingWrapper({
 
       {/* Body Content */}
       {!isMinimized && (
-        <div className="p-3.5">
+        <div className="p-3.5 w-full max-w-full overflow-hidden min-w-0">
           {children}
         </div>
       )}

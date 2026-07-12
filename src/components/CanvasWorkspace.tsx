@@ -67,7 +67,7 @@ export function CanvasWorkspace({
   const showPlayer = frames.length > 0 && !isExtractingGif;
 
   return (
-    <div className="flex flex-col space-y-6">
+    <div className="flex-1 flex flex-col space-y-6 min-w-0">
 
       {/* ── Result Banner ── shown inline above canvas when a result exists */}
       {resultUrl !== null && (
@@ -177,7 +177,7 @@ export function CanvasWorkspace({
 
       {/* ── Timeline / Gallery ── shown below canvas when frames exist */}
       {frames.length > 0 && (
-        <div className="tour-timeline bg-dark-card border border-dark-border rounded-2xl overflow-hidden">
+        <div className="tour-timeline bg-dark-card border border-dark-border rounded-2xl overflow-hidden w-full max-w-full min-w-0">
           {/* Gallery header with action buttons */}
           <div className="p-4 border-b border-dark-border flex justify-between items-center">
             <h3 className="text-lg font-medium text-white flex items-center space-x-2">
