@@ -34,7 +34,7 @@ import { CopyEffectsMenu } from './CopyEffectsMenu';
 import { EffectsStatusBanner } from './EffectsStatusBanner';
 import { PasteNotification } from './PasteNotification';
 import { applyEffectMask } from '../utils/effectHelpers';
-import { Layers, Clock, ArrowRightLeft, Repeat } from 'lucide-react';
+import { Layers, Clock, ArrowRightLeft, Repeat, ZoomIn, ZoomOut } from 'lucide-react';
 import type { PreviewPlayerRef } from './PreviewPlayer';
 
 interface TimelineEditorProps {
@@ -49,6 +49,7 @@ interface TimelineEditorProps {
 export function TimelineEditor({ frames, setFrames, currentTime, playerRef, onReverseTimeline, onBoomerangTimeline }: TimelineEditorProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
+  const [zoomLevel, setZoomLevel] = useState(100); // pixels per second
   const [isScrubbing, setIsScrubbing] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -389,7 +390,7 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef, onRe
   if (currentTime !== undefined) {
     for (let i = 0; i < frames.length; i++) {
       const f = frames[i];
-      const width = Math.max(60, Math.min(500, f.duration * 100));
+      const width = Math.max(60, Math.min(800, f.duration * zoomLevel));
       const gap = 8; // space-x-2 is 8px
       
       if (currentTime >= accumulatedTime + f.duration) {
@@ -421,7 +422,7 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef, onRe
     
     for (let i = 0; i < frames.length; i++) {
       const f = frames[i];
-      const width = Math.max(60, Math.min(500, f.duration * 100));
+      const width = Math.max(60, Math.min(800, f.duration * zoomLevel));
       
       if (clickX >= currentX && clickX <= currentX + width) {
         const progress = (clickX - currentX) / width;
@@ -517,6 +518,22 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef, onRe
             <span className="text-xs text-gray-400">s</span>
           </div>
 
+          {/* Zoom Controls */}
+          <div className="flex items-center space-x-1.5 ml-4 bg-dark-bg/50 px-2.5 py-1 rounded-lg border border-dark-border/50 select-none">
+            <ZoomOut size={12} className="text-gray-500" />
+            <input
+              type="range"
+              min="50"
+              max="250"
+              step="10"
+              value={zoomLevel}
+              onChange={(e) => setZoomLevel(parseInt(e.target.value))}
+              className="w-16 h-1 bg-dark-card rounded-lg appearance-none cursor-pointer accent-cta"
+            />
+            <ZoomIn size={12} className="text-gray-500" />
+            <span className="text-[9px] text-gray-400 font-mono w-8 text-center">{zoomLevel}%</span>
+          </div>
+
           <span className="text-xs px-2 py-0.5 bg-dark-bg rounded-md ml-auto">
             Total: {frames.reduce((acc, f) => acc + f.duration, 0).toFixed(1)}s
           </span>
@@ -549,6 +566,32 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef, onRe
           className={`overflow-x-auto custom-scrollbar pb-4 relative cursor-pointer ${isScrubbing ? 'select-none touch-none' : ''}`}
           onPointerDown={handlePointerDown}
         >
+          {/* Timeline Ruler */}
+          <div className="flex space-x-2 min-w-max select-none text-[9px] font-mono text-gray-500 border-b border-dark-border/20 pb-1.5 mb-2.5 pr-12 pl-[1px]">
+            {frames.map((frame, index) => {
+              const width = Math.max(60, Math.min(800, frame.duration * zoomLevel));
+              let startTime = 0;
+              for (let i = 0; i < index; i++) {
+                startTime += frames[i].duration;
+              }
+              return (
+                <div 
+                  key={`ruler-${frame.id}`} 
+                  style={{ width: `${width}px` }} 
+                  className="relative pl-1 border-l border-dark-border/30 flex flex-col justify-between h-5"
+                >
+                  <span className="text-[9px] font-bold text-gray-400">{startTime.toFixed(1)}s</span>
+                  <div className="flex justify-between w-full h-1 pr-1 pointer-events-none">
+                    <div className="w-px h-1 bg-dark-border/35" />
+                    {width > 120 && <div className="w-px h-1 bg-dark-border/35" />}
+                    {width > 180 && <div className="w-px h-1 bg-dark-border/35" />}
+                    <div className="w-px h-1 bg-dark-border/35" />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
@@ -556,10 +599,11 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef, onRe
           >
             <SortableContext items={frames.map(f => f.id)} strategy={horizontalListSortingStrategy}>
               <div className="flex space-x-2 min-w-max items-center relative">
-                {frames.map((frame) => (
+                {frames.map((frame, index) => (
                   <TimelineItem
                     key={frame.id}
                     frame={frame}
+                    index={index}
                     isSelected={selectedIds.has(frame.id)}
                     onSelect={handleSelect}
                     onDurationChange={handleDurationChange}
@@ -570,15 +614,18 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef, onRe
                     onCopyEffects={copyEffects}
                     onPasteEffects={pasteToFrame}
                     onToggleTarget={toggleTargetFrame}
+                    zoom={zoomLevel}
                   />
                 ))}
                 
                 {currentTime !== undefined && (
                   <div 
-                    className="absolute top-0 bottom-0 w-0.5 bg-cta z-50 pointer-events-none shadow-[0_0_8px_rgba(255,42,95,0.8)]"
+                    className="absolute top-[-28px] bottom-0 w-0.5 bg-cta z-50 pointer-events-none shadow-[0_0_8px_rgba(255,42,95,0.8)]"
                     style={{ left: `${playheadOffset}px` }}
                   >
-                    <div className="absolute -top-1 -left-1 w-2.5 h-2.5 bg-cta rounded-sm shadow-md" />
+                    <div className="absolute -top-1 -left-1.5 w-3.5 h-3.5 bg-cta rounded-full shadow-[0_0_6px_rgba(255,42,95,1)] flex items-center justify-center">
+                      <div className="w-1.5 h-1.5 bg-white rounded-full" />
+                    </div>
                   </div>
                 )}
               </div>
