@@ -16,20 +16,12 @@ import {
 } from '@dnd-kit/sortable';
 import type {
   FrameImage,
-  AnimationType,
-  TransitionType,
-  TextOverlay,
-  StickerOverlay,
-  CropSettings,
   EffectClipboard,
   EffectMask,
   EffectCategory,
-  FilterType,
-  ImageAdjustments,
 } from '../types';
 import { TimelineItem } from './TimelineItem';
-import { FrameInspector } from './FrameInspector';
-import { BatchFrameInspector } from './BatchFrameInspector';
+
 import { CopyEffectsMenu } from './CopyEffectsMenu';
 import { EffectsStatusBanner } from './EffectsStatusBanner';
 import { PasteNotification } from './PasteNotification';
@@ -45,11 +37,27 @@ interface TimelineEditorProps {
   playerRef?: React.RefObject<PreviewPlayerRef | null>;
   onReverseTimeline?: () => void;
   onBoomerangTimeline?: () => void;
+  selectedFrameIndex?: number | null;
+  setSelectedFrameIndex?: (idx: number | null) => void;
+  selectedIds: Set<string>;
+  setSelectedIds: React.Dispatch<React.SetStateAction<Set<string>>>;
+  lastSelectedId: string | null;
+  setLastSelectedId: (id: string | null) => void;
 }
 
-export function TimelineEditor({ frames, setFrames, currentTime, playerRef, onReverseTimeline, onBoomerangTimeline }: TimelineEditorProps) {
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
+export function TimelineEditor({ 
+  frames, 
+  setFrames, 
+  currentTime, 
+  playerRef, 
+  onReverseTimeline, 
+  onBoomerangTimeline,
+  setSelectedFrameIndex,
+  selectedIds,
+  setSelectedIds,
+  lastSelectedId,
+  setLastSelectedId
+}: TimelineEditorProps) {
   const [zoomLevel, setZoomLevel] = useState(100); // pixels per second
   const [isScrubbing, setIsScrubbing] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -162,53 +170,11 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef, onRe
       return next;
     });
   }, [frames, lastSelectedId]);
-
-  // Batch controllers
-  const handleRemoveSelected = useCallback(() => {
-    setFrames((items) => items.filter((f) => !selectedIds.has(f.id)));
-    setSelectedIds(new Set());
-  }, [selectedIds, setFrames]);
-
-  const handleDurationChangeSelected = useCallback((duration: number) => {
+  const handleDurationChange = useCallback((id: string, duration: number) => {
     setFrames((items) =>
-      items.map((f) => (selectedIds.has(f.id) ? { ...f, duration } : f))
+      items.map((i) => (i.id === id ? { ...i, duration } : i))
     );
-  }, [selectedIds, setFrames]);
-
-  const handleAnimationChangeSelected = useCallback((animation: AnimationType) => {
-    setFrames((items) =>
-      items.map((f) => (selectedIds.has(f.id) ? { ...f, animation } : f))
-    );
-  }, [selectedIds, setFrames]);
-
-  const handleTransitionChangeSelected = useCallback((transition: TransitionType) => {
-    setFrames((items) =>
-      items.map((f) => (selectedIds.has(f.id) ? { ...f, transition } : f))
-    );
-  }, [selectedIds, setFrames]);
-
-  const handleTransitionDurationChangeSelected = useCallback((duration: number) => {
-    setFrames((items) =>
-      items.map((f) => (selectedIds.has(f.id) ? { ...f, transitionDuration: duration } : f))
-    );
-  }, [selectedIds, setFrames]);
-
-  const handleFilterChangeSelected = useCallback((filter: FilterType) => {
-    setFrames((items) =>
-      items.map((f) => (selectedIds.has(f.id) ? { ...f, filter } : f))
-    );
-  }, [selectedIds, setFrames]);
-
-  const handleAdjustmentsChangeSelected = useCallback((updateFn: (prev: ImageAdjustments | undefined) => ImageAdjustments | undefined) => {
-    setFrames((items) =>
-      items.map((f) => {
-        if (selectedIds.has(f.id)) {
-          return { ...f, adjustments: updateFn(f.adjustments) };
-        }
-        return f;
-      })
-    );
-  }, [selectedIds, setFrames]);
+  }, [setFrames]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -233,69 +199,7 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef, onRe
     }
   };
 
-  const handleRemove = (id: string) => {
-    setFrames((items) => items.filter((i) => i.id !== id));
-  };
 
-  const handleDurationChange = (id: string, duration: number) => {
-    setFrames((items) =>
-      items.map((i) => (i.id === id ? { ...i, duration } : i))
-    );
-  };
-
-  const handleAnimationChange = (id: string, animation: AnimationType) => {
-    setFrames((items) =>
-      items.map((i) => (i.id === id ? { ...i, animation } : i))
-    );
-  };
-
-  const handleTransitionChange = (id: string, transition: TransitionType) => {
-    setFrames((items) =>
-      items.map((i) => (i.id === id ? { ...i, transition } : i))
-    );
-  };
-
-  const handleTransitionDurationChange = (id: string, duration: number) => {
-    setFrames((items) =>
-      items.map((i) => (i.id === id ? { ...i, transitionDuration: duration } : i))
-    );
-  };
-
-  const handleFilterChange = (id: string, filter: FilterType) => {
-    setFrames((items) =>
-      items.map((i) => (i.id === id ? { ...i, filter } : i))
-    );
-  };
-
-  const handleAdjustmentsChange = (id: string, adjustments: ImageAdjustments | undefined) => {
-    setFrames((items) =>
-      items.map((i) => (i.id === id ? { ...i, adjustments } : i))
-    );
-  };
-
-  const handleTextChange = (id: string, text: TextOverlay | undefined) => {
-    setFrames((items) =>
-      items.map((i) => (i.id === id ? { ...i, text } : i))
-    );
-  };
-
-  const handleStickersChange = (id: string, stickers: StickerOverlay[]) => {
-    setFrames((items) =>
-      items.map((i) => (i.id === id ? { ...i, stickers } : i))
-    );
-  };
-
-  const handleCropChange = (id: string, crop: CropSettings | undefined) => {
-    setFrames((items) =>
-      items.map((i) => (i.id === id ? { ...i, crop } : i))
-    );
-  };
-
-  const handleSfxChange = (id: string, sfx: FrameImage['sfx'] | undefined) => {
-    setFrames((items) =>
-      items.map((i) => (i.id === id ? { ...i, sfx } : i))
-    );
-  };
 
   // ─── Effects Copy-Paste Callbacks ──────────────────────────────────────────
 
@@ -448,11 +352,7 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef, onRe
     }
   }
 
-  const selectedFrame = selectedIds.size === 1 
-    ? frames.find(f => selectedIds.has(f.id)) 
-    : undefined;
-  
-  const selectedFrames = frames.filter(f => selectedIds.has(f.id));
+
 
   const calculateSeekTime = (clientX: number) => {
     if (!containerRef.current) return 0;
@@ -539,7 +439,7 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef, onRe
       {/* Timeline Track (Floating Panel) */}
       <FloatingWrapper
         title="Línea de Tiempo Principal"
-        defaultFloating={true} // Floating by default!
+        defaultFloating={false} // Docked by default!
         width="880px"
         themeColor="purple"
         className="w-full max-w-full overflow-hidden"
@@ -670,6 +570,7 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef, onRe
                       onPasteEffects={pasteToFrame}
                       onToggleTarget={toggleTargetFrame}
                       zoom={zoomLevel}
+                      onDoubleClick={() => setSelectedFrameIndex?.(index)}
                     />
                   ))}
                   
@@ -730,40 +631,7 @@ export function TimelineEditor({ frames, setFrames, currentTime, playerRef, onRe
         </div>
       )}
 
-      {/* Inspector (Properties Panel) */}
-      {selectedIds.size === 1 && selectedFrame && (
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
-          <FrameInspector
-            frame={selectedFrame}
-            onRemove={handleRemove}
-            onDurationChange={handleDurationChange}
-            onAnimationChange={handleAnimationChange}
-            onTransitionChange={handleTransitionChange}
-            onTransitionDurationChange={handleTransitionDurationChange}
-            onTextChange={handleTextChange}
-            onStickersChange={handleStickersChange}
-            onCropChange={handleCropChange}
-            onSfxChange={handleSfxChange}
-            onFilterChange={handleFilterChange}
-            onAdjustmentsChange={handleAdjustmentsChange}
-          />
-        </div>
-      )}
 
-      {selectedIds.size > 1 && (
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
-          <BatchFrameInspector
-            selectedFrames={selectedFrames}
-            onRemoveSelected={handleRemoveSelected}
-            onDurationChangeSelected={handleDurationChangeSelected}
-            onAnimationChangeSelected={handleAnimationChangeSelected}
-            onTransitionChangeSelected={handleTransitionChangeSelected}
-            onTransitionDurationChangeSelected={handleTransitionDurationChangeSelected}
-            onFilterChangeSelected={handleFilterChangeSelected}
-            onAdjustmentsChangeSelected={handleAdjustmentsChangeSelected}
-          />
-        </div>
-      )}
 
     </div>
   );

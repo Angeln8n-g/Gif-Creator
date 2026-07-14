@@ -7,7 +7,7 @@ import { StickerPicker } from './StickerPicker';
 import { CropEditor } from './CropEditor';
 import { EditorModal } from './EditorModal';
 import { FramePreviewCanvas } from './FramePreviewCanvas';
-import { Trash2, Crop, Type, Smile, Volume2, Music, Sun, RotateCcw } from 'lucide-react';
+import { Trash2, Crop, Type, Smile, Volume2, Music, Sun, RotateCcw, Palette } from 'lucide-react';
 
 interface FrameInspectorProps {
   frame: FrameImage;
@@ -22,6 +22,7 @@ interface FrameInspectorProps {
   onSfxChange: (id: string, sfx: FrameImage['sfx'] | undefined) => void;
   onFilterChange: (id: string, filter: FilterType) => void;
   onAdjustmentsChange: (id: string, adjustments: ImageAdjustments | undefined) => void;
+  onEditInCanvas?: () => void;
 }
 
 type ModalType = 'crop' | 'text' | 'stickers' | 'sfx' | null;
@@ -39,6 +40,7 @@ export function FrameInspector({
   onSfxChange,
   onFilterChange,
   onAdjustmentsChange,
+  onEditInCanvas,
 }: FrameInspectorProps) {
   const [activeModal, setActiveModal] = useState<ModalType>(null);
   const [sfxDuration, setSfxDuration] = useState<number>(10);
@@ -68,10 +70,10 @@ export function FrameInspector({
 
   return (
     <>
-      <div className="bg-dark-card border border-dark-border rounded-xl flex flex-col md:flex-row overflow-hidden shadow-lg shadow-black/20">
+      <div className="flex flex-col space-y-6 w-full">
         
         {/* Left: Preview & Basics */}
-        <div className="w-full md:w-1/3 p-4 border-b md:border-b-0 md:border-r border-dark-border flex flex-col space-y-4">
+        <div className="w-full flex flex-col space-y-4 pb-6 border-b border-dark-border/40">
           <div className="aspect-video w-full overflow-hidden bg-black flex items-center justify-center rounded-lg border border-dark-border shadow-inner">
             <img src={frame.previewUrl} alt="frame" className="w-full h-full object-contain" />
           </div>
@@ -92,17 +94,29 @@ export function FrameInspector({
             />
           </div>
 
-          <button
-            onClick={() => onRemove(frame.id)}
-            className="flex items-center justify-center space-x-2 w-full px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:border-red-500/40 rounded-lg transition-colors cursor-pointer"
-          >
-            <Trash2 size={16} />
-            <span>Eliminar Fotograma</span>
-          </button>
+          <div className="flex flex-col space-y-2">
+            {onEditInCanvas && (
+              <button
+                onClick={onEditInCanvas}
+                className="flex items-center justify-center space-x-2 w-full px-4 py-2.5 bg-cta hover:bg-cta-hover text-white rounded-lg shadow-md shadow-cta/20 hover:shadow-lg hover:shadow-cta/30 transition-all font-semibold cursor-pointer"
+              >
+                <Palette size={16} />
+                <span>Editar en Canvas</span>
+              </button>
+            )}
+
+            <button
+              onClick={() => onRemove(frame.id)}
+              className="flex items-center justify-center space-x-2 w-full px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 hover:border-red-500/40 rounded-lg transition-colors cursor-pointer"
+            >
+              <Trash2 size={16} />
+              <span>Eliminar Fotograma</span>
+            </button>
+          </div>
         </div>
 
         {/* Right: Effects & Overlays */}
-        <div className="w-full md:w-2/3 p-4 grid grid-cols-1 md:grid-cols-2 gap-6 overflow-y-auto max-h-[400px] md:max-h-[500px] custom-scrollbar">
+        <div className="w-full flex flex-col space-y-6">
           
           <div className="space-y-6">
             {/* Animation */}
@@ -323,16 +337,12 @@ export function FrameInspector({
         title="Recorte de Imagen"
         icon={<Crop size={16} />}
         accentColor="emerald"
-        preview={
-          <FramePreviewCanvas
-            frame={frame}
-            cropOverride={frame.crop}
-          />
-        }
       >
         <CropEditor
+          frame={frame}
           crop={frame.crop}
           onChange={(crop) => onCropChange(frame.id, crop)}
+          onClose={() => setActiveModal(null)}
         />
       </EditorModal>
 

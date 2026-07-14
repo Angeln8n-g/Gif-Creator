@@ -109,6 +109,7 @@ export interface CropSettings {
   insetBottom: number;         // 0-50 % crop from bottom
   insetLeft: number;           // 0-50 % crop from left
   freeformPoints?: { x: number; y: number }[]; // percentage coordinates (0-100)
+  rotation?: number;            // rotation in degrees (0-360)
 }
 
 // ─── Image Adjustments (Lightroom Style) ───
@@ -141,6 +142,51 @@ export interface FrameImage {
     start: number;
     end: number;
   };
+}
+
+// ─── Interactive Canvas Types ───
+export type DrawingTool = 'select' | 'brush' | 'eraser' | 'line' | 'arrow' | 'rectangle' | 'circle' | 'ellipse' | 'triangle' | 'text' | 'eyedropper' | 'sticker';
+
+export interface DrawingObject {
+  id: string;
+  type: DrawingTool;
+  fabricJSON: string; // Fabric.js serialized object string
+}
+
+export interface CanvasLayer {
+  id: string;
+  name: string;
+  type: 'image' | 'text' | 'sticker' | 'drawing' | 'shape';
+  visible: boolean;
+  locked: boolean;
+  opacity: number;
+  zIndex: number;
+  objectId?: string; // References a text overlay, sticker or drawing
+}
+
+export interface FrameImage {
+  id: string;
+  file: File;
+  previewUrl: string;
+  duration: number; // seconds
+  animation: AnimationType;
+  filter?: FilterType;
+  transition: TransitionType;
+  transitionDuration: number; // seconds (portion of frame duration used for transition)
+  text?: TextOverlay;
+  stickers: StickerOverlay[];
+  crop?: CropSettings;
+  adjustments?: ImageAdjustments;
+  sfx?: {
+    name: string;
+    url: string;
+    file: File;
+    volume: number;
+    start: number;
+    end: number;
+  };
+  drawings?: DrawingObject[];
+  layers?: CanvasLayer[];
 }
 
 // ─── Render Settings ───

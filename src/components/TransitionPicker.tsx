@@ -4,7 +4,6 @@ import {
   ArrowUpFromLine, ArrowDownFromLine, PanelLeft, PanelRight,
   Moon, Sun, ZoomIn, ZoomOut, PanelTop, PanelBottom
 } from 'lucide-react';
-import { FloatingWrapper } from './FloatingWrapper';
 
 const transitions: { value: TransitionType; label: string; icon: React.ReactNode }[] = [
   { value: 'none', label: 'Ninguna', icon: <Ban size={14} /> },
@@ -32,13 +31,7 @@ interface TransitionPickerProps {
 
 export function TransitionPicker({ value, duration, onChange, onDurationChange }: TransitionPickerProps) {
   return (
-    <FloatingWrapper
-      title="Transición al siguiente"
-      defaultFloating={false} // Docked by default
-      width="340px"
-      themeColor="purple"
-      defaultPositionOffset={{ x: 380, y: 180 }}
-    >
+    <div className="bg-dark-bg/40 border border-dark-border/60 rounded-xl p-3 space-y-3">
       <div className="grid grid-cols-4 gap-1">
         {transitions.map((t) => (
           <button
@@ -57,7 +50,8 @@ export function TransitionPicker({ value, duration, onChange, onDurationChange }
         ))}
       </div>
       {value !== 'none' && (
-        <div className="mt-2 flex items-center gap-2">
+        <div className="flex items-center gap-2 bg-dark-bg/30 p-2 rounded-lg border border-dark-border/40">
+          <span className="text-[10px] text-gray-400 font-medium shrink-0">Duración:</span>
           <input
             type="range"
             min="0.1"
@@ -67,9 +61,9 @@ export function TransitionPicker({ value, duration, onChange, onDurationChange }
             onChange={(e) => onDurationChange(parseFloat(e.target.value))}
             className="flex-1 h-1.5 bg-dark-bg border border-dark-border rounded-lg appearance-none cursor-pointer accent-purple-500"
           />
-          <span className="text-[10px] font-mono text-purple-400 w-8 text-right">{duration}s</span>
+          <span className="text-[10px] font-mono text-purple-400 w-8 text-right font-semibold">{duration}s</span>
         </div>
       )}
-    </FloatingWrapper>
+    </div>
   );
 }

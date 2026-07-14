@@ -30,6 +30,7 @@ interface TimelineItemProps {
   onPasteEffects?: (id: string) => void;
   onToggleTarget?: (id: string) => void;
   zoom?: number; // Pixels per second
+  onDoubleClick?: (id: string) => void;
 }
 
 export function TimelineItem({
@@ -46,6 +47,7 @@ export function TimelineItem({
   onPasteEffects,
   onToggleTarget,
   zoom = 100,
+  onDoubleClick,
 }: TimelineItemProps) {
   const {
     attributes,
@@ -132,6 +134,10 @@ export function TimelineItem({
       ref={setNodeRef}
       style={style}
       onClick={handleFrameClick}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        onDoubleClick?.(frame.id);
+      }}
       className={`timeline-item-container relative h-20 group shrink-0 bg-dark-card rounded-xl border overflow-hidden cursor-grab active:cursor-grabbing select-none transition-all duration-200
         ${borderClasses}
         ${isDragging ? 'shadow-2xl shadow-black scale-[0.98]' : ''}

@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import type { FrameImage, CropSettings } from '../types';
 import { Play, Pause, SkipBack, SkipForward, GripHorizontal, Minimize2, Maximize2, Pin, PinOff, RotateCcw } from 'lucide-react';
+import { renderDrawingsToContext } from '../canvas/canvasRenderer';
 
 // Easing helpers
 function easeInOut(t: number): number {
@@ -322,7 +323,7 @@ export const PreviewPlayer = forwardRef<PreviewPlayerRef, PreviewPlayerProps>(({
   const [currentFrame, setCurrentFrame] = useState(0);
 
   // Floating Window States
-  const [isFloating, setIsFloating] = useState(true);
+  const [isFloating, setIsFloating] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -417,6 +418,8 @@ export const PreviewPlayer = forwardRef<PreviewPlayerRef, PreviewPlayerProps>(({
   const animRef = useRef<number>(0);
   const lastTimeRef = useRef<number>(0);
   const imagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
+  const drawingsCacheRef = useRef<Map<string, HTMLCanvasElement>>(new Map());
+  const drawingsJsonRef = useRef<Map<string, string>>(new Map());
   const stickerImagesRef = useRef<Map<string, HTMLImageElement>>(new Map());
   const currentFrameRef = useRef(0);
 
@@ -506,6 +509,34 @@ export const PreviewPlayer = forwardRef<PreviewPlayerRef, PreviewPlayerProps>(({
       map.set(frame.id, img);
     });
     imagesRef.current = map;
+  }, [frames]);
+
+  // Preload and cache drawings
+  useEffect(() => {
+    frames.forEach((frame) => {
+      const drawingsJson = JSON.stringify(frame.drawings || []);
+      const cachedJson = drawingsJsonRef.current.get(frame.id);
+
+      if (frame.drawings && frame.drawings.length > 0) {
+        if (cachedJson !== drawingsJson) {
+          const tempCanvas = document.createElement('canvas');
+          tempCanvas.width = 960;
+          tempCanvas.height = 540;
+          
+          renderDrawingsToContext(tempCanvas.getContext('2d') as any, frame.drawings, 960, 540)
+            .then(() => {
+              drawingsCacheRef.current.set(frame.id, tempCanvas);
+              drawingsJsonRef.current.set(frame.id, drawingsJson);
+            })
+            .catch((err) => {
+              console.error('Failed to pre-render drawings:', err);
+            });
+        }
+      } else {
+        drawingsCacheRef.current.delete(frame.id);
+        drawingsJsonRef.current.delete(frame.id);
+      }
+    });
   }, [frames]);
 
   useImperativeHandle(ref, () => ({
@@ -1236,6 +1267,12 @@ export const PreviewPlayer = forwardRef<PreviewPlayerRef, PreviewPlayerProps>(({
         applyAnimation(ctx, frame, progress, w, h);
         applyCropAndDraw(ctx, img, frame, w, h);
         ctx.restore();
+      }
+
+      // Draw drawings / shapes from cache
+      const cachedDrawings = drawingsCacheRef.current.get(frame.id);
+      if (cachedDrawings) {
+        ctx.drawImage(cachedDrawings, 0, 0, w, h);
       }
 
       // Draw overlays

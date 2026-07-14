@@ -4,7 +4,7 @@ import type { StickerOverlay, TextAnimation } from '../types';
 import { X, Move, RotateCw, Upload } from 'lucide-react';
 import { AnimationPicker } from './AnimationPicker';
 import { TransitionPicker } from './TransitionPicker';
-import { FloatingWrapper } from './FloatingWrapper';
+
 
 const stickerAnimations: { value: TextAnimation; label: string }[] = [
   { value: 'none', label: 'Ninguna' },
@@ -91,14 +91,7 @@ export function StickerPicker({ stickers, onChange }: StickerPickerProps) {
   };
 
   return (
-    <FloatingWrapper
-      title="Stickers & Emojis"
-      defaultFloating={false} // Docked by default
-      width="360px"
-      themeColor="amber"
-      defaultPositionOffset={{ x: 740, y: 250 }}
-    >
-      <div className="space-y-4">
+    <div className="space-y-4">
 
       {/* Active stickers list */}
       {stickers.length > 0 && (
@@ -276,7 +269,6 @@ export function StickerPicker({ stickers, onChange }: StickerPickerProps) {
           Eliminar Todos los Stickers
         </button>
       )}
-      </div>
-    </FloatingWrapper>
+    </div>
   );
 }

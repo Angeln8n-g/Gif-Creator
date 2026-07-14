@@ -44,10 +44,10 @@ export function BatchFrameInspector({
   const defaultFilter = allFiltersMatch ? (selectedFrames[0].filter || 'none') : 'none';
 
   return (
-    <div className="bg-dark-card border border-dark-border rounded-xl flex flex-col md:flex-row overflow-hidden shadow-lg shadow-black/20">
+    <div className="flex flex-col space-y-6 w-full">
       
       {/* Left: Selected Frames Overview */}
-      <div className="w-full md:w-1/3 p-4 border-b md:border-b-0 md:border-r border-dark-border flex flex-col space-y-4">
+      <div className="w-full flex flex-col space-y-4 pb-6 border-b border-dark-border/40">
         <div>
           <h3 className="text-sm font-semibold text-light mb-1">Edición en Lote</h3>
           <p className="text-xs text-gray-400">{selectedFrames.length} fotogramas seleccionados</p>
@@ -101,7 +101,7 @@ export function BatchFrameInspector({
       </div>
 
       {/* Right: Batch Effects Pickers */}
-      <div className="w-full md:w-2/3 p-4 grid grid-cols-1 md:grid-cols-2 gap-6 overflow-y-auto max-h-[400px] md:max-h-[500px] custom-scrollbar">
+      <div className="w-full flex flex-col space-y-6">
         
         {/* Animation */}
         <div className="space-y-4">

@@ -7,7 +7,7 @@ interface EditorModalProps {
   title: string;
   icon: React.ReactNode;
   accentColor: string;       // e.g. 'emerald', 'blue', 'amber'
-  preview: React.ReactNode;
+  preview?: React.ReactNode;
   children: React.ReactNode;
 }
 
@@ -98,21 +98,23 @@ export function EditorModal({
           </button>
         </div>
 
-        {/* Body — Preview + Editor side-by-side on desktop, stacked on mobile */}
+        {/* Body */}
         <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col lg:flex-row">
           {/* Preview Panel */}
-          <div className="w-full lg:w-1/2 p-4 lg:p-5 flex flex-col gap-3 border-b lg:border-b-0 lg:border-r border-dark-border/30">
-            <div className="flex items-center gap-2 mb-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-              <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Vista Previa en Vivo</span>
+          {preview && (
+            <div className="w-full lg:w-1/2 p-4 lg:p-5 flex flex-col gap-3 border-b lg:border-b-0 lg:border-r border-dark-border/30">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                <span className="text-[10px] font-medium text-gray-400 uppercase tracking-wider">Vista Previa en Vivo</span>
+              </div>
+              <div className="flex-1 flex items-center justify-center bg-black/30 rounded-xl p-3 min-h-[200px]">
+                {preview}
+              </div>
             </div>
-            <div className="flex-1 flex items-center justify-center bg-black/30 rounded-xl p-3 min-h-[200px]">
-              {preview}
-            </div>
-          </div>
+          )}
 
           {/* Editor Panel */}
-          <div className="w-full lg:w-1/2 p-4 lg:p-5 overflow-y-auto custom-scrollbar max-h-[50vh] lg:max-h-none">
+          <div className={preview ? "w-full lg:w-1/2 p-4 lg:p-5 overflow-y-auto custom-scrollbar max-h-[50vh] lg:max-h-none" : "w-full p-4 lg:p-5 overflow-y-auto custom-scrollbar"}>
             {children}
           </div>
         </div>

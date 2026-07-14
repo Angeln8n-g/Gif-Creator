@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { FFmpeg } from '@ffmpeg/ffmpeg';
 import { toBlobURL, fetchFile } from '@ffmpeg/util';
 import type { FrameImage, RenderSettings, CropSettings, TextOverlay, StickerOverlay, ImageAdjustments } from '../types';
+import { renderDrawingsToContext } from '../canvas/canvasRenderer';
 
 // Helper function to fetch resources with progress tracking
 async function fetchWithProgress(
@@ -96,19 +97,26 @@ export function useFFmpeg() {
   const buildCropPath = (
     ctx: OffscreenCanvasRenderingContext2D,
     crop: CropSettings,
-    cw: number,
-    ch: number
+    dx: number,
+    dy: number,
+    dw: number,
+    dh: number
   ) => {
     const m = crop.margin;
     const p = crop.padding;
     const offset = m + p;
-    const x = offset, y = offset;
-    const w = cw - offset * 2, h = ch - offset * 2;
+    const x = dx + offset, y = dy + offset;
+    const w = dw - offset * 2, h = dh - offset * 2;
     if (w <= 0 || h <= 0) return;
 
     ctx.beginPath();
     switch (crop.shape) {
-      case 'rectangle': case 'inset': {
+      case 'inset': {
+        const cr = Math.min(crop.cornerRadius, w / 2, h / 2);
+        ctx.roundRect(x, y, w, h, cr);
+        break;
+      }
+      case 'rectangle': {
         const cr = Math.min(crop.cornerRadius, w / 2, h / 2);
         const iT = (crop.insetTop / 100) * h, iR = (crop.insetRight / 100) * w;
         const iB = (crop.insetBottom / 100) * h, iL = (crop.insetLeft / 100) * w;
@@ -470,7 +478,7 @@ function getCanvasFilter(filter: string | undefined): string {
         ctx.save();
         buildCropPath(ctx, frame.crop, width, height);
         ctx.clip();
-        drawImageCover(ctx, img, width, height);
+        drawImageCover(ctx, img, width, height, frame.crop);
         ctx.restore();
 
         ctx.filter = 'none';
@@ -513,6 +521,11 @@ function getCanvasFilter(filter: string | undefined): string {
     }
 
     ctx.restore(); // End animation transform
+
+    // ── Draw drawings / shapes from interactive canvas ──
+    if (frame.drawings && frame.drawings.length > 0) {
+      await renderDrawingsToContext(ctx as any, frame.drawings, width, height);
+    }
 
     // ── Draw text overlay with full animations ──
     renderTextOverlay(ctx, frame.text, progress, width, height, frame.duration, frame.transitionDuration);
@@ -1160,11 +1173,37 @@ function getCanvasFilter(filter: string | undefined): string {
 }
 
 // ─── Helper functions ───
-function drawImageCover(ctx: OffscreenCanvasRenderingContext2D, img: ImageBitmap, cw: number, ch: number) {
-  const ratio = Math.min(cw / img.width, ch / img.height);
-  const w = img.width * ratio;
-  const h = img.height * ratio;
-  ctx.drawImage(img, (cw - w) / 2, (ch - h) / 2, w, h);
+function drawImageCover(ctx: OffscreenCanvasRenderingContext2D, img: ImageBitmap, cw: number, ch: number, crop?: CropSettings) {
+  let sx = 0;
+  let sy = 0;
+  let sw = img.width;
+  let sh = img.height;
+
+  if (crop && crop.shape !== 'none') {
+    sx = (crop.insetLeft / 100) * img.width;
+    sy = (crop.insetTop / 100) * img.height;
+    sw = img.width - sx - (crop.insetRight / 100) * img.width;
+    sh = img.height - sy - (crop.insetBottom / 100) * img.height;
+    if (sw <= 0 || sh <= 0) {
+      sx = 0;
+      sy = 0;
+      sw = img.width;
+      sh = img.height;
+    }
+  }
+
+  const ratio = Math.min(cw / sw, ch / sh);
+  const w = sw * ratio;
+  const h = sh * ratio;
+
+  ctx.save();
+  if (crop && crop.rotation) {
+    ctx.translate(cw / 2, ch / 2);
+    ctx.rotate((crop.rotation * Math.PI) / 180);
+    ctx.translate(-cw / 2, -ch / 2);
+  }
+  ctx.drawImage(img, sx, sy, sw, sh, (cw - w) / 2, (ch - h) / 2, w, h);
+  ctx.restore();
 }
 
 function easeInOut(t: number): number {

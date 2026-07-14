@@ -3,7 +3,6 @@ import {
   ZoomIn, ZoomOut, ArrowLeft, ArrowRight, ArrowUp, ArrowDown, 
   RotateCw, RotateCcw, Layers, ArrowUpDown, Eye, EyeOff, Ban
 } from 'lucide-react';
-import { FloatingWrapper } from './FloatingWrapper';
 
 const animations: { value: AnimationType; label: string; icon: React.ReactNode }[] = [
   { value: 'none', label: 'Ninguna', icon: <Ban size={14} /> },
@@ -28,13 +27,7 @@ interface AnimationPickerProps {
 
 export function AnimationPicker({ value, onChange }: AnimationPickerProps) {
   return (
-    <FloatingWrapper
-      title="Movimiento & Cámara"
-      defaultFloating={false} // Docked by default
-      width="340px"
-      themeColor="cta"
-      defaultPositionOffset={{ x: 380, y: 390 }}
-    >
+    <div className="bg-dark-bg/40 border border-dark-border/60 rounded-xl p-3">
       <div className="grid grid-cols-4 gap-1">
         {animations.map((anim) => (
           <button
@@ -52,6 +45,6 @@ export function AnimationPicker({ value, onChange }: AnimationPickerProps) {
           </button>
         ))}
       </div>
-    </FloatingWrapper>
+    </div>
   );
 }

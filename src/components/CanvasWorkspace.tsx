@@ -4,6 +4,7 @@ import { PreviewPlayer, type PreviewPlayerRef } from './PreviewPlayer';
 import { VideoTrimmer } from './VideoTrimmer';
 import { TimelineEditor } from './TimelineEditor';
 import { AudioWaveform } from './AudioWaveform';
+import { CanvasEditor } from '../canvas/CanvasEditor';
 import type React from 'react';
 
 interface CanvasWorkspaceProps {
@@ -33,6 +34,12 @@ interface CanvasWorkspaceProps {
   setFrames: React.Dispatch<React.SetStateAction<FrameImage[]>>;
   onReverseTimeline?: () => void;
   onBoomerangTimeline?: () => void;
+  selectedFrameIndex: number | null;
+  setSelectedFrameIndex: (idx: number | null) => void;
+  selectedFrameIds: Set<string>;
+  setSelectedFrameIds: React.Dispatch<React.SetStateAction<Set<string>>>;
+  lastSelectedId: string | null;
+  setLastSelectedId: (id: string | null) => void;
 }
 
 export function CanvasWorkspace({
@@ -60,11 +67,19 @@ export function CanvasWorkspace({
   audioVolume,
   onReverseTimeline,
   onBoomerangTimeline,
+  selectedFrameIndex,
+  setSelectedFrameIndex,
+  selectedFrameIds,
+  setSelectedFrameIds,
+  lastSelectedId,
+  setLastSelectedId
 }: CanvasWorkspaceProps) {
   // Determine which canvas state to render — mutually exclusive
   const showEmpty = frames.length === 0 && !isExtractingGif;
   const showSpinner = isExtractingGif;
-  const showPlayer = frames.length > 0 && !isExtractingGif;
+  const showPlayer = frames.length > 0 && !isExtractingGif && selectedFrameIndex === null;
+  const showCanvasEditor = frames.length > 0 && !isExtractingGif && selectedFrameIndex !== null;
+
 
   return (
     <div className="flex-1 flex flex-col space-y-6 min-w-0">
@@ -163,6 +178,19 @@ export function CanvasWorkspace({
         />
       )}
 
+      {/* State 4: Canvas Editor */}
+      {showCanvasEditor && selectedFrameIndex !== null && (
+        <CanvasEditor
+          frame={frames[selectedFrameIndex]}
+          onFrameUpdate={(updatedFrame) => {
+            setFrames((prev) =>
+              prev.map((f, idx) => (idx === selectedFrameIndex ? updatedFrame : f))
+            );
+          }}
+          onClose={() => setSelectedFrameIndex(null)}
+        />
+      )}
+
       {/* ── VideoTrimmer modal ── shown when a video file is selected */}
       {selectedVideo !== null && (
         <VideoTrimmer
@@ -227,6 +255,12 @@ export function CanvasWorkspace({
             playerRef={playerRef}
             onReverseTimeline={onReverseTimeline}
             onBoomerangTimeline={onBoomerangTimeline}
+            selectedFrameIndex={selectedFrameIndex}
+            setSelectedFrameIndex={setSelectedFrameIndex}
+            selectedIds={selectedFrameIds}
+            setSelectedIds={setSelectedFrameIds}
+            lastSelectedId={lastSelectedId}
+            setLastSelectedId={setLastSelectedId}
           />
           
           <AudioWaveform

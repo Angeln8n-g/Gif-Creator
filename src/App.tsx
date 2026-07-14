@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import type { FrameImage, RenderSettings } from './types';
 import { CollapsibleSettingsPanel } from './components/CollapsibleSettingsPanel';
 import { CanvasWorkspace } from './components/CanvasWorkspace';
@@ -13,6 +13,8 @@ import { Undo2, Redo2 } from 'lucide-react';
 import { saveProject, loadProject, clearProject, type SavedProject } from './services/indexedDb';
 import { OnboardingTour } from './components/OnboardingTour';
 import { RenderProgressModal } from './components/RenderProgressModal';
+import { FrameInspector } from './components/FrameInspector';
+import { BatchFrameInspector } from './components/BatchFrameInspector';
 import { generateId } from './utils/generateId';
 
 function App() {
@@ -39,6 +41,64 @@ function App() {
   const [audioTrack, setAudioTrack] = useState<File | null>(null);
   const [audioVolume, setAudioVolume] = useState<number>(1.0);
   const [restorableProject, setRestorableProject] = useState<SavedProject | null>(null);
+  const [selectedFrameIndex, setSelectedFrameIndex] = useState<number | null>(null);
+  const [selectedFrameIds, setSelectedFrameIds] = useState<Set<string>>(new Set());
+  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (selectedFrameIndex !== null && selectedFrameIndex >= frames.length) {
+      setSelectedFrameIndex(null);
+    }
+  }, [frames.length, selectedFrameIndex]);
+
+  // Sincronizar selección inicial: Auto-seleccionar primer fotograma si no hay selección
+  useEffect(() => {
+    setSelectedFrameIds((prev) => {
+      const next = new Set<string>();
+      prev.forEach((id) => {
+        if (frames.some((f) => f.id === id)) {
+          next.add(id);
+        }
+      });
+      
+      if (next.size === 0 && frames.length > 0) {
+        next.add(frames[0].id);
+        setLastSelectedId(frames[0].id);
+      }
+      return next;
+    });
+  }, [frames]);
+
+  // Handlers genéricos de mutación para el Inspector de Propiedades
+  const handleUpdateFrame = useCallback((id: string, updatedFields: Partial<FrameImage>) => {
+    setFrames((prev) => prev.map((f) => (f.id === id ? { ...f, ...updatedFields } : f)));
+  }, [setFrames]);
+
+  const handleUpdateSelectedFrames = useCallback((updatedFields: Partial<FrameImage> | ((f: FrameImage) => Partial<FrameImage>)) => {
+    setFrames((prev) =>
+      prev.map((f) => {
+        if (selectedFrameIds.has(f.id)) {
+          const fields = typeof updatedFields === 'function' ? updatedFields(f) : updatedFields;
+          return { ...f, ...fields };
+        }
+        return f;
+      })
+    );
+  }, [selectedFrameIds, setFrames]);
+
+  const handleRemoveFrame = useCallback((id: string) => {
+    setFrames((prev) => prev.filter((f) => f.id !== id));
+    setSelectedFrameIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  }, [setFrames]);
+
+  const handleRemoveSelectedFrames = useCallback(() => {
+    setFrames((prev) => prev.filter((f) => !selectedFrameIds.has(f.id)));
+    setSelectedFrameIds(new Set());
+  }, [selectedFrameIds, setFrames]);
 
   const [isPanelOpen, togglePanel] = useIsPanelOpen();
   const [runTour, setRunTour] = useState(false);
@@ -293,7 +353,7 @@ function App() {
       )}
 
       {/* Main Content */}
-      <div className="flex-1 flex gap-8">
+      <div className="flex-1 flex gap-8 min-h-0 overflow-hidden">
         {/* Left: Collapsible Settings Panel */}
         <CollapsibleSettingsPanel
           isOpen={isPanelOpen}
@@ -316,33 +376,81 @@ function App() {
           frames={frames}
         />
 
-        {/* Right: Canvas Workspace */}
-        <CanvasWorkspace
-          frames={frames}
-          setFrames={setFrames}
-          settings={settings}
-          resultUrl={resultUrl}
-          isExtractingGif={isExtractingGif}
-          selectedVideo={selectedVideo}
-          isRemoving={isRemoving}
-          bgProgress={bgProgress}
-          bgDownloadProgress={bgDownloadProgress}
-          playerRef={playerRef}
-          isPlaying={isPlaying}
-          currentTime={currentTime}
-          onPlayStateChange={setIsPlaying}
-          onTimeUpdate={setCurrentTime}
-          onUpload={handleUpload}
-          onResultDismiss={() => setResultUrl(null)}
-          onResultDownload={handleDownload}
-          onRemoveBackground={() => removeBackgroundFromFrames(frames, setFrames)}
-          onClearFrames={() => setFrames([])}
-          onVideoDismiss={() => setSelectedVideo(null)}
-          audioTrack={audioTrack}
-          audioVolume={audioVolume}
-          onReverseTimeline={handleReverseTimeline}
-          onBoomerangTimeline={handleBoomerangTimeline}
-        />
+        {/* Center: Canvas Workspace */}
+        <div className="flex-1 flex flex-col min-w-0">
+          <CanvasWorkspace
+            frames={frames}
+            setFrames={setFrames}
+            settings={settings}
+            resultUrl={resultUrl}
+            isExtractingGif={isExtractingGif}
+            selectedVideo={selectedVideo}
+            isRemoving={isRemoving}
+            bgProgress={bgProgress}
+            bgDownloadProgress={bgDownloadProgress}
+            playerRef={playerRef}
+            isPlaying={isPlaying}
+            currentTime={currentTime}
+            onPlayStateChange={setIsPlaying}
+            onTimeUpdate={setCurrentTime}
+            onUpload={handleUpload}
+            onResultDismiss={() => setResultUrl(null)}
+            onResultDownload={handleDownload}
+            onRemoveBackground={() => removeBackgroundFromFrames(frames, setFrames)}
+            onClearFrames={() => setFrames([])}
+            onVideoDismiss={() => setSelectedVideo(null)}
+            audioTrack={audioTrack}
+            audioVolume={audioVolume}
+            onReverseTimeline={handleReverseTimeline}
+            onBoomerangTimeline={handleBoomerangTimeline}
+            selectedFrameIndex={selectedFrameIndex}
+            setSelectedFrameIndex={setSelectedFrameIndex}
+            selectedFrameIds={selectedFrameIds}
+            setSelectedFrameIds={setSelectedFrameIds}
+            lastSelectedId={lastSelectedId}
+            setLastSelectedId={setLastSelectedId}
+          />
+        </div>
+
+        {/* Right Sidebar: Selected Frame Properties */}
+        {frames.length > 0 && selectedFrameIds.size > 0 && (
+          <div className="w-80 xl:w-96 shrink-0 bg-dark-card border border-dark-border rounded-2xl p-4 overflow-y-auto max-h-[calc(100vh-8rem)] custom-scrollbar">
+            {selectedFrameIds.size === 1 ? (
+              (() => {
+                const selectedFrame = frames.find(f => selectedFrameIds.has(f.id));
+                if (!selectedFrame) return null;
+                return (
+                  <FrameInspector
+                    frame={selectedFrame}
+                    onRemove={handleRemoveFrame}
+                    onDurationChange={(id, duration) => handleUpdateFrame(id, { duration })}
+                    onAnimationChange={(id, animation) => handleUpdateFrame(id, { animation })}
+                    onTransitionChange={(id, transition) => handleUpdateFrame(id, { transition })}
+                    onTransitionDurationChange={(id, duration) => handleUpdateFrame(id, { transitionDuration: duration })}
+                    onTextChange={(id, text) => handleUpdateFrame(id, { text })}
+                    onStickersChange={(id, stickers) => handleUpdateFrame(id, { stickers })}
+                    onCropChange={(id, crop) => handleUpdateFrame(id, { crop })}
+                    onSfxChange={(id, sfx) => handleUpdateFrame(id, { sfx })}
+                    onFilterChange={(id, filter) => handleUpdateFrame(id, { filter })}
+                    onAdjustmentsChange={(id, adjustments) => handleUpdateFrame(id, { adjustments })}
+                    onEditInCanvas={() => setSelectedFrameIndex(frames.findIndex(f => f.id === selectedFrame.id))}
+                  />
+                );
+              })()
+            ) : (
+              <BatchFrameInspector
+                selectedFrames={frames.filter(f => selectedFrameIds.has(f.id))}
+                onRemoveSelected={handleRemoveSelectedFrames}
+                onDurationChangeSelected={(duration) => handleUpdateSelectedFrames({ duration })}
+                onAnimationChangeSelected={(animation) => handleUpdateSelectedFrames({ animation })}
+                onTransitionChangeSelected={(transition) => handleUpdateSelectedFrames({ transition })}
+                onTransitionDurationChangeSelected={(duration) => handleUpdateSelectedFrames({ transitionDuration: duration })}
+                onFilterChangeSelected={(filter) => handleUpdateSelectedFrames({ filter })}
+                onAdjustmentsChangeSelected={(updateFn) => handleUpdateSelectedFrames(f => ({ adjustments: updateFn(f.adjustments) }))}
+              />
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

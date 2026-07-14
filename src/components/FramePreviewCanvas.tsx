@@ -22,25 +22,57 @@ function bounceEase(t: number): number {
 }
 
 // ── Drawing Helpers ──────────────────────────────────────────
-function drawImageCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, cw: number, ch: number) {
+function drawImageCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, cw: number, ch: number, crop?: CropSettings) {
   if (!img.naturalWidth) return;
-  const ratio = Math.min(cw / img.naturalWidth, ch / img.naturalHeight);
-  const w = img.naturalWidth * ratio;
-  const h = img.naturalHeight * ratio;
-  ctx.drawImage(img, (cw - w) / 2, (ch - h) / 2, w, h);
+  
+  let sx = 0;
+  let sy = 0;
+  let sw = img.naturalWidth;
+  let sh = img.naturalHeight;
+
+  if (crop && crop.shape !== 'none') {
+    sx = (crop.insetLeft / 100) * img.naturalWidth;
+    sy = (crop.insetTop / 100) * img.naturalHeight;
+    sw = img.naturalWidth - sx - (crop.insetRight / 100) * img.naturalWidth;
+    sh = img.naturalHeight - sy - (crop.insetBottom / 100) * img.naturalHeight;
+    if (sw <= 0 || sh <= 0) {
+      sx = 0;
+      sy = 0;
+      sw = img.naturalWidth;
+      sh = img.naturalHeight;
+    }
+  }
+
+  const ratio = Math.min(cw / sw, ch / sh);
+  const w = sw * ratio;
+  const h = sh * ratio;
+
+  ctx.save();
+  if (crop && crop.rotation) {
+    ctx.translate(cw / 2, ch / 2);
+    ctx.rotate((crop.rotation * Math.PI) / 180);
+    ctx.translate(-cw / 2, -ch / 2);
+  }
+  ctx.drawImage(img, sx, sy, sw, sh, (cw - w) / 2, (ch - h) / 2, w, h);
+  ctx.restore();
 }
 
-function buildCropPath(ctx: CanvasRenderingContext2D, crop: CropSettings, cw: number, ch: number) {
+function buildCropPath(ctx: CanvasRenderingContext2D, crop: CropSettings, dx: number, dy: number, dw: number, dh: number) {
   const m = crop.margin;
   const p = crop.padding;
   const offset = m + p;
-  const x = offset, y = offset;
-  const w = cw - offset * 2, h = ch - offset * 2;
+  const x = dx + offset, y = dy + offset;
+  const w = dw - offset * 2, h = dh - offset * 2;
   if (w <= 0 || h <= 0) return;
 
   ctx.beginPath();
   switch (crop.shape) {
-    case 'rectangle': case 'inset': {
+    case 'inset': {
+      const cr = Math.min(crop.cornerRadius, w / 2, h / 2);
+      ctx.roundRect(x, y, w, h, cr);
+      break;
+    }
+    case 'rectangle': {
       const cr = Math.min(crop.cornerRadius, w / 2, h / 2);
       const iT = (crop.insetTop / 100) * h, iR = (crop.insetRight / 100) * w;
       const iB = (crop.insetBottom / 100) * h, iL = (crop.insetLeft / 100) * w;
@@ -155,17 +187,37 @@ function applyCropAndDraw(ctx: CanvasRenderingContext2D, img: HTMLImageElement, 
     }
     return;
   }
+  const imgW = img.naturalWidth || cw;
+  const imgH = img.naturalHeight || ch;
+
+  let sx = 0, sy = 0, sw = imgW, sh = imgH;
+  if (crop && crop.shape !== 'none') {
+    sx = (crop.insetLeft / 100) * imgW;
+    sy = (crop.insetTop / 100) * imgH;
+    sw = imgW - sx - (crop.insetRight / 100) * imgW;
+    sh = imgH - sy - (crop.insetBottom / 100) * imgH;
+    if (sw <= 0 || sh <= 0) {
+      sx = 0; sy = 0; sw = imgW; sh = imgH;
+    }
+  }
+
+  const ratio = Math.min(cw / sw, ch / sh);
+  const w = sw * ratio;
+  const h = sh * ratio;
+  const dx = (cw - w) / 2;
+  const dy = (ch - h) / 2;
+
   ctx.save();
-  buildCropPath(ctx, crop, cw, ch);
+  buildCropPath(ctx, crop, dx, dy, w, h);
   ctx.clip();
-  drawImageCover(ctx, img, cw, ch);
+  drawImageCover(ctx, img, cw, ch, crop);
   ctx.restore();
 
   ctx.filter = 'none';
 
   if (crop.borderWidth > 0) {
     ctx.save();
-    buildCropPath(ctx, crop, cw, ch);
+    buildCropPath(ctx, crop, dx, dy, w, h);
     ctx.lineWidth = crop.borderWidth;
     ctx.strokeStyle = crop.borderColor;
     ctx.stroke();
