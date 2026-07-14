@@ -476,7 +476,7 @@ function getCanvasFilter(filter: string | undefined): string {
 
       if (frame.crop && frame.crop.shape !== 'none') {
         ctx.save();
-        buildCropPath(ctx, frame.crop, width, height);
+        buildCropPath(ctx, frame.crop, 0, 0, width, height);
         ctx.clip();
         drawImageCover(ctx, img, width, height, frame.crop);
         ctx.restore();
@@ -497,7 +497,7 @@ function getCanvasFilter(filter: string | undefined): string {
 
         if (frame.crop.borderWidth > 0) {
           ctx.save();
-          buildCropPath(ctx, frame.crop, width, height);
+          buildCropPath(ctx, frame.crop, 0, 0, width, height);
           ctx.lineWidth = frame.crop.borderWidth;
           ctx.strokeStyle = frame.crop.borderColor;
           ctx.stroke();

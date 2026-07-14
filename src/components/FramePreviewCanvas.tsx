@@ -191,14 +191,12 @@ function applyCropAndDraw(ctx: CanvasRenderingContext2D, img: HTMLImageElement, 
   const imgH = img.naturalHeight || ch;
 
   let sx = 0, sy = 0, sw = imgW, sh = imgH;
-  if (crop && crop.shape !== 'none') {
-    sx = (crop.insetLeft / 100) * imgW;
-    sy = (crop.insetTop / 100) * imgH;
-    sw = imgW - sx - (crop.insetRight / 100) * imgW;
-    sh = imgH - sy - (crop.insetBottom / 100) * imgH;
-    if (sw <= 0 || sh <= 0) {
-      sx = 0; sy = 0; sw = imgW; sh = imgH;
-    }
+  sx = (crop.insetLeft / 100) * imgW;
+  sy = (crop.insetTop / 100) * imgH;
+  sw = imgW - sx - (crop.insetRight / 100) * imgW;
+  sh = imgH - sy - (crop.insetBottom / 100) * imgH;
+  if (sw <= 0 || sh <= 0) {
+    sx = 0; sy = 0; sw = imgW; sh = imgH;
   }
 
   const ratio = Math.min(cw / sw, ch / sh);
