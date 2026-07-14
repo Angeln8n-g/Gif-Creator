@@ -17,13 +17,44 @@ function bounceEase(t: number): number {
   return n1 * (x -= 2.625 / d1) * x + 0.984375;
 }
 
-// Draw image covering the canvas (object-contain style) — module-level function
-function drawImageCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, cw: number, ch: number) {
+// Draw image covering the canvas (object-cover style) — module-level function
+function drawImageCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, cw: number, ch: number, crop?: CropSettings) {
   if (!img.naturalWidth) return;
-  const ratio = Math.min(cw / img.naturalWidth, ch / img.naturalHeight);
-  const w = img.naturalWidth * ratio;
-  const h = img.naturalHeight * ratio;
-  ctx.drawImage(img, (cw - w) / 2, (ch - h) / 2, w, h);
+  
+  // Calculate source region based on insets
+  let sx = 0;
+  let sy = 0;
+  let sw = img.naturalWidth;
+  let sh = img.naturalHeight;
+
+  if (crop && crop.shape !== 'none') {
+    sx = (crop.insetLeft / 100) * img.naturalWidth;
+    sy = (crop.insetTop / 100) * img.naturalHeight;
+    sw = img.naturalWidth - sx - (crop.insetRight / 100) * img.naturalWidth;
+    sh = img.naturalHeight - sy - (crop.insetBottom / 100) * img.naturalHeight;
+    if (sw <= 0 || sh <= 0) {
+      sx = 0;
+      sy = 0;
+      sw = img.naturalWidth;
+      sh = img.naturalHeight;
+    }
+  }
+
+  // Calculate destination size maintaining aspect ratio to cover entire canvas
+  const ratio = Math.max(cw / sw, ch / sh);
+  const w = sw * ratio;
+  const h = sh * ratio;
+  const dx = (cw - w) / 2;
+  const dy = (ch - h) / 2;
+
+  ctx.save();
+  if (crop && crop.rotation) {
+    ctx.translate(cw / 2, ch / 2);
+    ctx.rotate((crop.rotation * Math.PI) / 180);
+    ctx.translate(-cw / 2, -ch / 2);
+  }
+  ctx.drawImage(img, sx, sy, sw, sh, dx, dy, w, h);
+  ctx.restore();
 }
 
 // Build a clipping path for a crop shape
@@ -236,7 +267,7 @@ function applyCropAndDraw(
   }
 
   if (!crop || crop.shape === 'none') {
-    drawImageCover(ctx, img, cw, ch);
+    drawImageCover(ctx, img, cw, ch, crop);
     ctx.filter = 'none';
     // Temperature overlay
     if (frame.adjustments && frame.adjustments.temperature !== 0) {
@@ -257,7 +288,7 @@ function applyCropAndDraw(
   ctx.save();
   buildCropPath(ctx, crop, cw, ch);
   ctx.clip();
-  drawImageCover(ctx, img, cw, ch);
+  drawImageCover(ctx, img, cw, ch, crop);
   ctx.restore();
 
   ctx.filter = 'none';

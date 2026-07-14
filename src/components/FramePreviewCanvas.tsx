@@ -25,6 +25,7 @@ function bounceEase(t: number): number {
 function drawImageCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, cw: number, ch: number, crop?: CropSettings) {
   if (!img.naturalWidth) return;
   
+  // Calculate source region based on insets
   let sx = 0;
   let sy = 0;
   let sw = img.naturalWidth;
@@ -43,9 +44,12 @@ function drawImageCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, cw
     }
   }
 
-  const ratio = Math.min(cw / sw, ch / sh);
+  // Calculate destination size maintaining aspect ratio to cover entire canvas
+  const ratio = Math.max(cw / sw, ch / sh);
   const w = sw * ratio;
   const h = sh * ratio;
+  const dx = (cw - w) / 2;
+  const dy = (ch - h) / 2;
 
   ctx.save();
   if (crop && crop.rotation) {
@@ -53,7 +57,7 @@ function drawImageCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, cw
     ctx.rotate((crop.rotation * Math.PI) / 180);
     ctx.translate(-cw / 2, -ch / 2);
   }
-  ctx.drawImage(img, sx, sy, sw, sh, (cw - w) / 2, (ch - h) / 2, w, h);
+  ctx.drawImage(img, sx, sy, sw, sh, dx, dy, w, h);
   ctx.restore();
 }
 
@@ -69,7 +73,11 @@ function buildCropPath(ctx: CanvasRenderingContext2D, crop: CropSettings, dx: nu
   switch (crop.shape) {
     case 'inset': {
       const cr = Math.min(crop.cornerRadius, w / 2, h / 2);
-      ctx.roundRect(x, y, w, h, cr);
+      const iT = (crop.insetTop / 100) * h, iR = (crop.insetRight / 100) * w;
+      const iB = (crop.insetBottom / 100) * h, iL = (crop.insetLeft / 100) * w;
+      const rw = w - iL - iR, rh = h - iT - iB;
+      if (rw <= 0 || rh <= 0) return;
+      ctx.roundRect(x + iL, y + iT, rw, rh, cr);
       break;
     }
     case 'rectangle': {
