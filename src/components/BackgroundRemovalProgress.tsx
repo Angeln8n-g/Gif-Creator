@@ -1,4 +1,4 @@
-import { X, Wand2, Loader2 } from 'lucide-react';
+import { X, Loader2 } from 'lucide-react';
 
 interface BackgroundRemovalProgressProps {
   isRemoving: boolean;
