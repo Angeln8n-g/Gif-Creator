@@ -5,7 +5,7 @@ import { CanvasWorkspace } from './components/CanvasWorkspace';
 import { type PreviewPlayerRef } from './components/PreviewPlayer';
 import { useFFmpeg } from './hooks/useFFmpeg';
 import { useGifExtractor } from './hooks/useGifExtractor';
-import { useBackgroundRemover } from './hooks/useBackgroundRemover';
+import { useBackgroundRemover, type BackgroundRemovalQuality } from './hooks/useBackgroundRemover';
 import { useIsPanelOpen } from './hooks/useIsPanelOpen';
 import { useHistoryState } from './hooks/useHistoryState';
 import { Logo } from './components/Logo';
@@ -15,6 +15,8 @@ import { OnboardingTour } from './components/OnboardingTour';
 import { RenderProgressModal } from './components/RenderProgressModal';
 import { FrameInspector } from './components/FrameInspector';
 import { BatchFrameInspector } from './components/BatchFrameInspector';
+import BackgroundRemovalModal from './components/BackgroundRemovalModal';
+import BackgroundRemovalProgress from './components/BackgroundRemovalProgress';
 import { generateId } from './utils/generateId';
 
 function App() {
@@ -44,6 +46,7 @@ function App() {
   const [selectedFrameIndex, setSelectedFrameIndex] = useState<number | null>(null);
   const [selectedFrameIds, setSelectedFrameIds] = useState<Set<string>>(new Set());
   const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
+  const [showBgRemovalModal, setShowBgRemovalModal] = useState(false);
 
   useEffect(() => {
     if (selectedFrameIndex !== null && selectedFrameIndex >= frames.length) {
@@ -191,6 +194,15 @@ function App() {
     setFrames([...frames, ...reversed]);
   };
 
+  // Initialize hooks that provide functions used in callbacks
+  const { extractGifFrames } = useGifExtractor();
+  const { isRemoving, progress: bgProgress, downloadProgress: bgDownloadProgress, currentFrame: bgCurrentFrame, totalFrames: bgTotalFrames, removeBackgroundFromFrames, cancelRemoval } = useBackgroundRemover();
+
+  const handleRemoveBackgroundConfirm = useCallback((quality: BackgroundRemovalQuality, batchSize: number) => {
+    setShowBgRemovalModal(false);
+    removeBackgroundFromFrames(frames, setFrames, { quality, batchSize });
+  }, [frames, setFrames, removeBackgroundFromFrames]);
+
   // Auto-save to IndexedDB with debounce
   useEffect(() => {
     const timer = setTimeout(async () => {
@@ -212,8 +224,6 @@ function App() {
 
     return () => clearTimeout(timer);
   }, [frames, settings, audioTrack, audioVolume]);
-  const { extractGifFrames } = useGifExtractor();
-  const { isRemoving, progress: bgProgress, downloadProgress: bgDownloadProgress, removeBackgroundFromFrames } = useBackgroundRemover();
 
   // Global keyboard shortcuts for Undo/Redo
   useEffect(() => {
@@ -290,6 +300,25 @@ function App() {
         ffmpegLoadProgress={loadProgress}
         isFfmpegLoaded={loaded}
         settings={settings}
+      />
+
+      {/* Background Removal Modal */}
+      {showBgRemovalModal && (
+        <BackgroundRemovalModal
+          frameCount={frames.length}
+          onConfirm={handleRemoveBackgroundConfirm}
+          onCancel={() => setShowBgRemovalModal(false)}
+        />
+      )}
+
+      {/* Background Removal Progress */}
+      <BackgroundRemovalProgress
+        isRemoving={isRemoving}
+        progress={bgProgress}
+        downloadProgress={bgDownloadProgress}
+        currentFrame={bgCurrentFrame}
+        totalFrames={bgTotalFrames}
+        onCancel={cancelRemoval}
       />
 
       {/* Header */}
@@ -396,7 +425,7 @@ function App() {
             onUpload={handleUpload}
             onResultDismiss={() => setResultUrl(null)}
             onResultDownload={handleDownload}
-            onRemoveBackground={() => removeBackgroundFromFrames(frames, setFrames)}
+            onRemoveBackground={() => setShowBgRemovalModal(true)}
             onClearFrames={() => setFrames([])}
             onVideoDismiss={() => setSelectedVideo(null)}
             audioTrack={audioTrack}

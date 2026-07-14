@@ -230,8 +230,8 @@ export function CanvasWorkspace({
                 <span className="hidden sm:inline">
                   {isRemoving
                     ? bgDownloadProgress !== null
-                      ? `Descargando IA... ${bgDownloadProgress}%`
-                      : `Removiendo... ${bgProgress}%`
+                      ? `Descargando modelo... ${bgDownloadProgress}%`
+                      : `Procesando... ${bgProgress}%`
                     : 'Quitar Fondo (IA)'
                   }
                 </span>
