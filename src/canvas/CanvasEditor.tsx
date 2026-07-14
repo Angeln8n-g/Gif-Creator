@@ -21,6 +21,7 @@ export function CanvasEditor({
   onClose
 }: CanvasEditorProps) {
   const canvasRef = useRef<fabric.Canvas | null>(null);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
 
   // States for toolbar and editor options
   const [activeTool, setActiveTool] = useState<DrawingTool>('select');
@@ -54,6 +55,7 @@ export function CanvasEditor({
     const canvas = canvasRef.current;
     if (!canvas) return;
     saveCanvasState(canvas);
+    setHasUnsavedChanges(true);
   };
 
   useCanvasKeyboard({
@@ -89,6 +91,7 @@ export function CanvasEditor({
       canvas.renderAll();
       setLayers(generateCanvasLayers(canvas));
       onFrameUpdate({ ...frame, drawings: serializeCanvasObjects(canvas) });
+      setHasUnsavedChanges(true);
     }
   };
 
@@ -113,6 +116,7 @@ export function CanvasEditor({
       canvas.renderAll();
       setLayers(generateCanvasLayers(canvas));
       onFrameUpdate({ ...frame, drawings: serializeCanvasObjects(canvas) });
+      setHasUnsavedChanges(true);
     }
   };
 
@@ -126,6 +130,7 @@ export function CanvasEditor({
       canvas.renderAll();
       setLayers(generateCanvasLayers(canvas));
       onFrameUpdate({ ...frame, drawings: serializeCanvasObjects(canvas) });
+      setHasUnsavedChanges(true);
     }
   };
 
@@ -146,6 +151,7 @@ export function CanvasEditor({
         canvas.renderAll();
         setLayers(generateCanvasLayers(canvas));
         onFrameUpdate({ ...frame, drawings: serializeCanvasObjects(canvas) });
+        setHasUnsavedChanges(true);
       }
     }
   };
@@ -162,7 +168,25 @@ export function CanvasEditor({
       setSelectedLayerId(null);
       setLayers(generateCanvasLayers(canvas));
       onFrameUpdate({ ...frame, drawings: serializeCanvasObjects(canvas) });
+      setHasUnsavedChanges(true);
     }
+  };
+
+  const handleSaveAndClose = () => {
+    const canvas = canvasRef.current;
+    if (canvas) {
+      onFrameUpdate({ ...frame, drawings: serializeCanvasObjects(canvas) });
+    }
+    setHasUnsavedChanges(false);
+    onClose();
+  };
+
+  const handleCancel = () => {
+    if (hasUnsavedChanges) {
+      const confirmed = window.confirm('Tienes cambios sin guardar. ¿Estás seguro de que deseas salir sin guardar?');
+      if (!confirmed) return;
+    }
+    onClose();
   };
 
   return (
@@ -174,18 +198,32 @@ export function CanvasEditor({
           <span className="text-xl">🎨</span>
           <div>
             <h3 className="text-base font-bold text-white leading-tight">Modo de Edición Canvas</h3>
-            <p className="text-xs text-gray-500 font-semibold">Diseña y dibuja sobre el fotograma seleccionado</p>
+            <p className="text-xs text-gray-500 font-semibold">
+              Diseña y dibuja sobre el fotograma seleccionado
+              {hasUnsavedChanges && <span className="ml-2 text-yellow-400">● Cambios sin guardar</span>}
+            </p>
           </div>
         </div>
 
         <div className="flex items-center space-x-2">
-          {/* Back to player button */}
+          {/* Save and close button */}
           <button
-            onClick={onClose}
-            className="flex items-center space-x-2 px-4 py-2 bg-cta hover:bg-cta-hover text-white text-xs font-bold rounded-xl shadow-lg shadow-cta/20 transition-all cursor-pointer"
+            onClick={handleSaveAndClose}
+            className="flex items-center space-x-2 px-5 py-2.5 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white text-sm font-bold rounded-xl shadow-lg shadow-green-600/30 transition-all cursor-pointer"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            <span>Guardar y Salir</span>
+          </button>
+          
+          {/* Cancel button */}
+          <button
+            onClick={handleCancel}
+            className="flex items-center space-x-2 px-4 py-2 bg-dark-tertiary hover:bg-dark-tertiary/80 text-gray-300 hover:text-white text-sm font-bold rounded-xl border border-dark-border transition-all cursor-pointer"
           >
             <Play size={14} />
-            <span>Volver a Reproducción</span>
+            <span>Cancelar</span>
           </button>
         </div>
       </div>
