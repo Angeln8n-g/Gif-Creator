@@ -31,6 +31,7 @@ interface TimelineItemProps {
   onToggleTarget?: (id: string) => void;
   zoom?: number; // Pixels per second
   onDoubleClick?: (id: string) => void;
+  onContextMenu?: (id: string, e: React.MouseEvent) => void;
 }
 
 export function TimelineItem({
@@ -48,6 +49,7 @@ export function TimelineItem({
   onToggleTarget,
   zoom = 100,
   onDoubleClick,
+  onContextMenu,
 }: TimelineItemProps) {
   const {
     attributes,
@@ -137,6 +139,12 @@ export function TimelineItem({
       onDoubleClick={(e) => {
         e.stopPropagation();
         onDoubleClick?.(frame.id);
+      }}
+      onContextMenu={(e) => {
+        if (onContextMenu) {
+          e.preventDefault();
+          onContextMenu(frame.id, e);
+        }
       }}
       className={`timeline-item-container relative h-20 group shrink-0 bg-dark-card rounded-xl border overflow-hidden cursor-grab active:cursor-grabbing select-none transition-all duration-200
         ${borderClasses}

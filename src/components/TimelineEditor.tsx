@@ -71,6 +71,19 @@ export function TimelineEditor({
   const [showCopyMenu, setShowCopyMenu] = useState(false);
   // ────────────────────────────────────────────────────────────────────────────
 
+  // ─── Context Menu & Frame Actions State ─────────────────────────────────────
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; frameId: string } | null>(null);
+  const [frameClipboard, setFrameClipboard] = useState<FrameImage[]>([]);
+
+  // Hide context menu on global click
+  useEffect(() => {
+    const handleClick = () => setContextMenu(null);
+    window.addEventListener('click', handleClick);
+    return () => window.removeEventListener('click', handleClick);
+  }, []);
+  // ────────────────────────────────────────────────────────────────────────────
+
+
   // Auto-select first frame if selection is empty and frames are loaded
   useEffect(() => {
     setSelectedIds((prev) => {
@@ -199,7 +212,105 @@ export function TimelineEditor({
     }
   };
 
+  // ─── Frame Operations ────────────────────────────────────────────────────
+  const handleDeleteFrames = useCallback((targetId?: string) => {
+    const idsToDelete = targetId ? new Set([targetId]) : selectedIds;
+    if (idsToDelete.size === 0) return;
+    
+    setFrames((prev) => prev.filter(f => !idsToDelete.has(f.id)));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      idsToDelete.forEach(id => next.delete(id));
+      return next;
+    });
+    setContextMenu(null);
+  }, [selectedIds, setFrames, setSelectedIds]);
 
+  const handleDuplicateFrames = useCallback((targetId?: string) => {
+    const idsToDuplicate = targetId ? new Set([targetId]) : selectedIds;
+    if (idsToDuplicate.size === 0) return;
+    
+    setFrames((prev) => {
+      const next = [...prev];
+      let insertionIndex = next.length;
+      
+      // If single selection or targetId, insert after it
+      if (idsToDuplicate.size === 1) {
+        const id = Array.from(idsToDuplicate)[0];
+        const idx = next.findIndex(f => f.id === id);
+        if (idx !== -1) insertionIndex = idx + 1;
+      }
+      
+      const toDuplicate = next.filter(f => idsToDuplicate.has(f.id));
+      const duplicates = toDuplicate.map(f => ({
+        ...f,
+        id: `frame-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      }));
+      
+      next.splice(insertionIndex, 0, ...duplicates);
+      return next;
+    });
+    setContextMenu(null);
+  }, [selectedIds, setFrames]);
+
+  const handleCopyFrames = useCallback(() => {
+    if (selectedIds.size === 0) return;
+    const toCopy = frames.filter(f => selectedIds.has(f.id)).map(f => ({ ...f }));
+    setFrameClipboard(toCopy);
+  }, [frames, selectedIds]);
+
+  const handlePasteFrames = useCallback(() => {
+    if (frameClipboard.length === 0) return;
+    
+    setFrames((prev) => {
+      const next = [...prev];
+      let insertionIndex = next.length;
+      if (lastSelectedId) {
+        const idx = next.findIndex(f => f.id === lastSelectedId);
+        if (idx !== -1) insertionIndex = idx + 1;
+      }
+      
+      const newFrames = frameClipboard.map(f => ({
+        ...f,
+        id: `frame-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      }));
+      
+      next.splice(insertionIndex, 0, ...newFrames);
+      return next;
+    });
+  }, [frameClipboard, lastSelectedId, setFrames]);
+
+  const handleEditFrame = useCallback((id: string) => {
+    const index = frames.findIndex((f) => f.id === id);
+    if (index !== -1 && setSelectedFrameIndex) {
+      setSelectedFrameIndex(index);
+    }
+    setContextMenu(null);
+  }, [frames, setSelectedFrameIndex]);
+
+  // Global Keyboard listener for timeline frame operations
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return; // Do not trigger if typing in an input
+      }
+      
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        handleDeleteFrames();
+      } else if (e.key === 'c' && (e.ctrlKey || e.metaKey)) {
+        handleCopyFrames();
+      } else if (e.key === 'v' && (e.ctrlKey || e.metaKey)) {
+        handlePasteFrames();
+      } else if (e.key === 'd' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault(); // Prevent browser bookmark dialog
+        handleDuplicateFrames();
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleDeleteFrames, handleCopyFrames, handlePasteFrames, handleDuplicateFrames]);
+  // ─────────────────────────────────────────────────────────────────────────
 
   // ─── Effects Copy-Paste Callbacks ──────────────────────────────────────────
 
@@ -571,6 +682,13 @@ export function TimelineEditor({
                       onToggleTarget={toggleTargetFrame}
                       zoom={zoomLevel}
                       onDoubleClick={() => setSelectedFrameIndex?.(index)}
+                      onContextMenu={(id, e) => {
+                        // Ensure the frame is selected when right-clicked
+                        if (!selectedIds.has(id)) {
+                          handleSelect(id);
+                        }
+                        setContextMenu({ x: e.clientX, y: e.clientY, frameId: id });
+                      }}
                     />
                   ))}
                   
@@ -628,6 +746,53 @@ export function TimelineEditor({
             count={pasteNotificationCount}
             onDismiss={() => setPasteNotificationCount(null)}
           />
+        </div>
+      )}
+
+      {/* Frame Context Menu */}
+      {contextMenu && (
+        <div 
+          className="fixed z-50 min-w-[160px] bg-dark-bg border border-dark-border rounded-xl shadow-2xl py-1 overflow-hidden animate-in fade-in zoom-in-95 duration-100"
+          style={{ 
+            left: Math.min(contextMenu.x, window.innerWidth - 170), 
+            top: Math.min(contextMenu.y, window.innerHeight - 150) 
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="px-3 py-1.5 border-b border-dark-border/50">
+            <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Opciones de Fotograma</span>
+          </div>
+          <div className="p-1 flex flex-col">
+            <button
+              onClick={() => handleEditFrame(contextMenu.frameId)}
+              className="flex items-center space-x-2 px-3 py-2 text-xs font-semibold text-gray-300 hover:text-white hover:bg-dark-card rounded-lg transition-colors cursor-pointer w-full text-left"
+            >
+              <span>✏️</span>
+              <span>Editar</span>
+            </button>
+            <button
+              onClick={() => handleCopyFrames()}
+              className="flex items-center space-x-2 px-3 py-2 text-xs font-semibold text-gray-300 hover:text-white hover:bg-dark-card rounded-lg transition-colors cursor-pointer w-full text-left"
+            >
+              <span>📋</span>
+              <span>Copiar (Ctrl+C)</span>
+            </button>
+            <button
+              onClick={() => handleDuplicateFrames(contextMenu.frameId)}
+              className="flex items-center space-x-2 px-3 py-2 text-xs font-semibold text-gray-300 hover:text-white hover:bg-dark-card rounded-lg transition-colors cursor-pointer w-full text-left"
+            >
+              <span>✨</span>
+              <span>Duplicar (Ctrl+D)</span>
+            </button>
+            <div className="h-px bg-dark-border/50 my-1 mx-2" />
+            <button
+              onClick={() => handleDeleteFrames(contextMenu.frameId)}
+              className="flex items-center space-x-2 px-3 py-2 text-xs font-semibold text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer w-full text-left"
+            >
+              <span>🗑️</span>
+              <span>Borrar (Supr)</span>
+            </button>
+          </div>
         </div>
       )}
 

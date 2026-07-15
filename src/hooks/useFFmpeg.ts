@@ -1197,8 +1197,8 @@ function drawImageCover(ctx: OffscreenCanvasRenderingContext2D, img: ImageBitmap
     }
   }
 
-  // Calculate destination size maintaining aspect ratio to cover entire canvas
-  const ratio = Math.max(cw / sw, ch / sh);
+  // Calculate destination size maintaining aspect ratio to fit inside canvas (contain)
+  const ratio = Math.min(cw / sw, ch / sh);
   const w = sw * ratio;
   const h = sh * ratio;
   const dx = (cw - w) / 2;

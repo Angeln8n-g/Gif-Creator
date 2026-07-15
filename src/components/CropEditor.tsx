@@ -438,25 +438,25 @@ export function CropEditor({ frame, crop, onChange, onClose }: CropEditorProps) 
     let nextBottom = dragState.startInsetBottom;
 
     if (dragState.type === 'tl') {
-      nextLeft = Math.max(0, Math.min(48, dragState.startInsetLeft + pctX));
-      nextTop = Math.max(0, Math.min(48, dragState.startInsetTop + pctY));
+      nextLeft = Math.max(0, Math.min(100 - nextRight - 1, dragState.startInsetLeft + pctX));
+      nextTop = Math.max(0, Math.min(100 - nextBottom - 1, dragState.startInsetTop + pctY));
     } else if (dragState.type === 'tr') {
-      nextRight = Math.max(0, Math.min(48, dragState.startInsetRight - pctX));
-      nextTop = Math.max(0, Math.min(48, dragState.startInsetTop + pctY));
+      nextRight = Math.max(0, Math.min(100 - nextLeft - 1, dragState.startInsetRight - pctX));
+      nextTop = Math.max(0, Math.min(100 - nextBottom - 1, dragState.startInsetTop + pctY));
     } else if (dragState.type === 'bl') {
-      nextLeft = Math.max(0, Math.min(48, dragState.startInsetLeft + pctX));
-      nextBottom = Math.max(0, Math.min(48, dragState.startInsetBottom - pctY));
+      nextLeft = Math.max(0, Math.min(100 - nextRight - 1, dragState.startInsetLeft + pctX));
+      nextBottom = Math.max(0, Math.min(100 - nextTop - 1, dragState.startInsetBottom - pctY));
     } else if (dragState.type === 'br') {
-      nextRight = Math.max(0, Math.min(48, dragState.startInsetRight - pctX));
-      nextBottom = Math.max(0, Math.min(48, dragState.startInsetBottom - pctY));
+      nextRight = Math.max(0, Math.min(100 - nextLeft - 1, dragState.startInsetRight - pctX));
+      nextBottom = Math.max(0, Math.min(100 - nextTop - 1, dragState.startInsetBottom - pctY));
     } else if (dragState.type === 't') {
-      nextTop = Math.max(0, Math.min(48, dragState.startInsetTop + pctY));
+      nextTop = Math.max(0, Math.min(100 - nextBottom - 1, dragState.startInsetTop + pctY));
     } else if (dragState.type === 'b') {
-      nextBottom = Math.max(0, Math.min(48, dragState.startInsetBottom - pctY));
+      nextBottom = Math.max(0, Math.min(100 - nextTop - 1, dragState.startInsetBottom - pctY));
     } else if (dragState.type === 'l') {
-      nextLeft = Math.max(0, Math.min(48, dragState.startInsetLeft + pctX));
+      nextLeft = Math.max(0, Math.min(100 - nextRight - 1, dragState.startInsetLeft + pctX));
     } else if (dragState.type === 'r') {
-      nextRight = Math.max(0, Math.min(48, dragState.startInsetRight - pctX));
+      nextRight = Math.max(0, Math.min(100 - nextLeft - 1, dragState.startInsetRight - pctX));
     } else if (dragState.type === 'move') {
       const boxW = 100 - dragState.startInsetLeft - dragState.startInsetRight;
       const boxH = 100 - dragState.startInsetTop - dragState.startInsetBottom;

@@ -36,6 +36,7 @@ export function FabricCanvas({
   color,
   opacity,
   zoom,
+  onZoomChange,
   showGrid,
   onSelectLayerId,
   selectedLayerId,
@@ -45,11 +46,12 @@ export function FabricCanvas({
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasElRef = useRef<HTMLCanvasElement>(null);
   const [scale, setScale] = useState(1);
+  const [isSpacePressed, setIsSpacePressed] = useState(false);
   const isDrawingShape = useRef(false);
   const shapeStartPoint = useRef<{ x: number; y: number } | null>(null);
   const activeShape = useRef<fabric.Object | null>(null);
 
-  // Responsive scale observer
+  // Responsive scale observer and Spacebar listener
   useEffect(() => {
     if (!containerRef.current) return;
     const updateScale = () => {
@@ -61,7 +63,26 @@ export function FabricCanvas({
     };
     updateScale();
     window.addEventListener('resize', updateScale);
-    return () => window.removeEventListener('resize', updateScale);
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space' && (e.target as HTMLElement).tagName !== 'INPUT' && (e.target as HTMLElement).tagName !== 'TEXTAREA') {
+        setIsSpacePressed(true);
+        e.preventDefault();
+      }
+    };
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        setIsSpacePressed(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+
+    return () => {
+      window.removeEventListener('resize', updateScale);
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
   }, []);
 
   // Sync canvas modification to parent state
@@ -104,7 +125,7 @@ export function FabricCanvas({
       const imgHeight = img.height || 1;
       const scaleX = canvasWidth / imgWidth;
       const scaleY = canvasHeight / imgHeight;
-      const scaleToCover = Math.max(scaleX, scaleY);
+      const scaleToCover = Math.min(scaleX, scaleY);
 
       img.set({
         scaleX: scaleToCover,
@@ -152,11 +173,28 @@ export function FabricCanvas({
       onSelectLayerId(null);
     };
 
+    const handleMouseWheel = (opt: any) => {
+      if (opt.e.ctrlKey || opt.e.metaKey) {
+        var delta = opt.e.deltaY;
+        var newZoom = canvas.getZoom();
+        newZoom *= 0.999 ** delta;
+        if (newZoom > 3) newZoom = 3;
+        if (newZoom < 0.2) newZoom = 0.2;
+        
+        canvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, newZoom);
+        opt.e.preventDefault();
+        opt.e.stopPropagation();
+        
+        onZoomChange(newZoom);
+      }
+    };
+
     canvas.on('object:modified', handleObjectModified);
     canvas.on('object:added', handleObjectAdded);
     canvas.on('selection:created', handleSelectionCreated);
     canvas.on('selection:updated', handleSelectionCreated);
     canvas.on('selection:cleared', handleSelectionCleared);
+    canvas.on('mouse:wheel', handleMouseWheel);
 
     return () => {
       canvas.off('object:modified', handleObjectModified);
@@ -164,6 +202,7 @@ export function FabricCanvas({
       canvas.off('selection:created', handleSelectionCreated);
       canvas.off('selection:updated', handleSelectionCreated);
       canvas.off('selection:cleared', handleSelectionCleared);
+      canvas.off('mouse:wheel', handleMouseWheel);
       canvas.dispose();
       canvasRef.current = null;
     };
@@ -244,6 +283,15 @@ export function FabricCanvas({
     if (!canvas) return;
 
     const handleMouseDown = (o: any) => {
+      if (isSpacePressed) {
+        (canvas as any).isDragging = true;
+        canvas.selection = false;
+        canvas.discardActiveObject();
+        (canvas as any).lastPosX = o.e.clientX;
+        (canvas as any).lastPosY = o.e.clientY;
+        return;
+      }
+
       if (activeTool === 'select' || activeTool === 'brush' || activeTool === 'eraser') return;
 
       const pointer = canvas.getPointer(o.e);
@@ -340,6 +388,19 @@ export function FabricCanvas({
     };
 
     const handleMouseMove = (o: any) => {
+      if ((canvas as any).isDragging) {
+        const e = o.e;
+        const vpt = canvas.viewportTransform;
+        if (vpt) {
+          vpt[4] += e.clientX - (canvas as any).lastPosX;
+          vpt[5] += e.clientY - (canvas as any).lastPosY;
+          canvas.requestRenderAll();
+          (canvas as any).lastPosX = e.clientX;
+          (canvas as any).lastPosY = e.clientY;
+        }
+        return;
+      }
+
       if (!isDrawingShape.current || !activeShape.current || !shapeStartPoint.current) return;
 
       const pointer = canvas.getPointer(o.e);
@@ -397,11 +458,18 @@ export function FabricCanvas({
     };
 
     const handleMouseUp = () => {
+      if ((canvas as any).isDragging) {
+        canvas.setViewportTransform(canvas.viewportTransform!);
+        (canvas as any).isDragging = false;
+        canvas.selection = activeTool === 'select';
+        return;
+      }
+
       if (!isDrawingShape.current) return;
       isDrawingShape.current = false;
 
-      const canvas = canvasRef.current;
-      if (!canvas || !activeShape.current || !shapeStartPoint.current) return;
+      const canvasInstance = canvasRef.current;
+      if (!canvasInstance || !activeShape.current || !shapeStartPoint.current) return;
 
       if (activeTool === 'arrow' && activeShape.current instanceof fabric.Line) {
         const line = activeShape.current;
@@ -441,7 +509,7 @@ export function FabricCanvas({
       }
 
       activeShape.current.setCoords();
-      canvas.renderAll();
+      canvasInstance.renderAll();
 
       onSaveHistory();
       syncCanvasToState();
@@ -461,7 +529,7 @@ export function FabricCanvas({
       canvas.off('mouse:move', handleMouseMove);
       canvas.off('mouse:up', handleMouseUp);
     };
-  }, [activeTool, color, brushWidth, opacity]);
+  }, [activeTool, color, brushWidth, opacity, isSpacePressed]);
 
   // Apply Selected Layer to Active Object
   useEffect(() => {
@@ -485,8 +553,10 @@ export function FabricCanvas({
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    canvas.setZoom(zoom);
-    canvas.renderAll();
+    if (Math.abs(canvas.getZoom() - zoom) > 0.01) {
+      canvas.zoomToPoint({ x: 960 / 2, y: 540 / 2 }, zoom);
+      canvas.renderAll();
+    }
   }, [zoom]);
 
   return (

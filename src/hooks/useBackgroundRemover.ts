@@ -50,7 +50,7 @@ export function useBackgroundRemover() {
   const processBatch = async (
     frameBatch: { frame: FrameImage; index: number }[],
     config: Partial<Config>,
-    onProgress: (index: number, result: { url: string; oldUrl: string }) => void
+    onProgress: (index: number, result: { url: string; oldUrl: string; file: File }) => void
   ): Promise<void> => {
     const promises = frameBatch.map(async ({ frame, index }) => {
       try {
@@ -72,7 +72,11 @@ export function useBackgroundRemover() {
         setDownloadProgress(null);
         
         const url = URL.createObjectURL(imageBlob);
-        onProgress(index, { url, oldUrl: frame.previewUrl });
+        const originalName = frame.file ? frame.file.name : `frame_${index}`;
+        const newName = originalName.replace(/\.[^/.]+$/, "") + "_nobg.png";
+        const file = new File([imageBlob], newName, { type: 'image/png' });
+
+        onProgress(index, { url, oldUrl: frame.previewUrl, file });
         
       } catch (err) {
         console.error(`Error processing frame ${index}:`, err);
@@ -136,7 +140,8 @@ export function useBackgroundRemover() {
               
               newFrames[index] = { 
                 ...newFrames[index], 
-                previewUrl: result.url 
+                previewUrl: result.url,
+                file: result.file
               };
               
               processedCount++;

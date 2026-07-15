@@ -1,5 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from 'react';
 import type { FrameImage, CropSettings, TextOverlay, StickerOverlay, ImageAdjustments } from '../types';
+import { renderDrawingsToContext } from '../canvas/canvasRenderer';
 
 /**
  * Animated canvas that renders a single frame in a loop,
@@ -44,8 +45,8 @@ function drawImageCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, cw
     }
   }
 
-  // Calculate destination size maintaining aspect ratio to cover entire canvas
-  const ratio = Math.max(cw / sw, ch / sh);
+  // Calculate destination size maintaining aspect ratio to fit inside canvas (contain)
+  const ratio = Math.min(cw / sw, ch / sh);
   const w = sw * ratio;
   const h = sh * ratio;
   const dx = (cw - w) / 2;
@@ -568,6 +569,26 @@ export function FramePreviewCanvas({
   const dragTargetRef = useRef<{ type: 'text' | 'sticker'; id?: string } | null>(null);
   const activeGuidesRef = useRef<{ x?: number; y?: number }>({});
   const [cursorStyle, setCursorStyle] = useState<'default' | 'grab' | 'grabbing'>('default');
+  const drawingsCacheRef = useRef<HTMLCanvasElement | null>(null);
+
+  // Load and cache drawings
+  useEffect(() => {
+    if (!frame.drawings || frame.drawings.length === 0) {
+      drawingsCacheRef.current = null;
+      return;
+    }
+    
+    // We render at 640x360 as the base preview resolution
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = 640;
+    tempCanvas.height = 360;
+    const ctx = tempCanvas.getContext('2d');
+    if (ctx) {
+      renderDrawingsToContext(ctx, frame.drawings, 640, 360).then(() => {
+        drawingsCacheRef.current = tempCanvas;
+      });
+    }
+  }, [frame.drawings]);
 
   // Load image
   useEffect(() => {
@@ -817,6 +838,11 @@ export function FramePreviewCanvas({
     applyAnimation(ctx, frame.animation, progress, w, h);
     applyCropAndDraw(ctx, img, crop, w, h, frame.filter, frame.adjustments);
     ctx.restore();
+
+    // Draw cached canvas objects
+    if (drawingsCacheRef.current) {
+      ctx.drawImage(drawingsCacheRef.current, 0, 0, w, h);
+    }
 
     // Draw text with animations
     drawText(ctx, text, progress, w, h, frame.duration, frame.transitionDuration);

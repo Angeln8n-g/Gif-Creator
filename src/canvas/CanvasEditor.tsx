@@ -172,6 +172,136 @@ export function CanvasEditor({
     }
   };
 
+  const handleClearCanvas = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    if (window.confirm("¿Estás seguro de que quieres limpiar todo el canvas?")) {
+      const objects = canvas.getObjects().filter(o => !(o as any).isBackgroundImage);
+      objects.forEach(obj => canvas.remove(obj));
+      canvas.discardActiveObject();
+      canvas.renderAll();
+      setLayers(generateCanvasLayers(canvas));
+      onFrameUpdate({ ...frame, drawings: serializeCanvasObjects(canvas) });
+      setHasUnsavedChanges(true);
+      saveCanvasState(canvas);
+    }
+  };
+
+  const handleUploadImage = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (e: any) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const url = URL.createObjectURL(file);
+      fabric.Image.fromURL(url, (img) => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        
+        // Scale down if image is too big
+        if (img.width && img.width > 400) {
+          img.scaleToWidth(400);
+        }
+        
+        img.set({
+          id: `obj-${Math.random().toString(36).substring(2, 9)}`,
+          left: canvas.width! / 2,
+          top: canvas.height! / 2,
+          originX: 'center',
+          originY: 'center',
+        } as any);
+        
+        canvas.add(img);
+        canvas.setActiveObject(img);
+        canvas.renderAll();
+        
+        setLayers(generateCanvasLayers(canvas));
+        onFrameUpdate({ ...frame, drawings: serializeCanvasObjects(canvas) });
+        setHasUnsavedChanges(true);
+        saveCanvasState(canvas);
+      });
+    };
+    input.click();
+  };
+
+  const handleAlign = (alignment: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom') => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const activeObj = canvas.getActiveObject();
+    if (!activeObj) return;
+
+    if (activeObj.type === 'activeSelection') {
+      const group = activeObj as fabric.ActiveSelection;
+      group.forEachObject((obj) => {
+        // Alignment inside a group requires manipulating object's left/top relative to group center
+        // Or we can just use setPositionByOrigin
+        switch (alignment) {
+          case 'left': obj.set('left', -group.width! / 2 + obj.width! * obj.scaleX! / 2); break;
+          case 'center': obj.set('left', 0); break;
+          case 'right': obj.set('left', group.width! / 2 - obj.width! * obj.scaleX! / 2); break;
+          case 'top': obj.set('top', -group.height! / 2 + obj.height! * obj.scaleY! / 2); break;
+          case 'middle': obj.set('top', 0); break;
+          case 'bottom': obj.set('top', group.height! / 2 - obj.height! * obj.scaleY! / 2); break;
+        }
+        obj.setCoords();
+      });
+      canvas.renderAll();
+    } else {
+      // Relative to canvas
+      switch (alignment) {
+        case 'left': activeObj.set('left', activeObj.width! * activeObj.scaleX! / 2); break;
+        case 'center': activeObj.centerH(); break;
+        case 'right': activeObj.set('left', canvas.width! - activeObj.width! * activeObj.scaleX! / 2); break;
+        case 'top': activeObj.set('top', activeObj.height! * activeObj.scaleY! / 2); break;
+        case 'middle': activeObj.centerV(); break;
+        case 'bottom': activeObj.set('top', canvas.height! - activeObj.height! * activeObj.scaleY! / 2); break;
+      }
+      activeObj.setCoords();
+      canvas.renderAll();
+    }
+    setHasUnsavedChanges(true);
+    saveCanvasState(canvas);
+  };
+
+  const handleLayerOrder = (action: 'front' | 'back' | 'forward' | 'backward') => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const activeObj = canvas.getActiveObject();
+    if (!activeObj) return;
+
+    if (activeObj.type === 'activeSelection') {
+      const group = activeObj as fabric.ActiveSelection;
+      group.forEachObject((obj) => {
+        switch (action) {
+          case 'front': obj.bringToFront(); break;
+          case 'back': obj.sendToBack(); break; // We might want to keep it above background
+          case 'forward': obj.bringForward(); break;
+          case 'backward': obj.sendBackwards(); break;
+        }
+      });
+    } else {
+      switch (action) {
+        case 'front': activeObj.bringToFront(); break;
+        case 'back': activeObj.sendToBack(); break;
+        case 'forward': activeObj.bringForward(); break;
+        case 'backward': activeObj.sendBackwards(); break;
+      }
+    }
+    
+    // Ensure background stays at index 0
+    const bg = canvas.getObjects().find(o => (o as any).isBackgroundImage);
+    if (bg) {
+      bg.sendToBack();
+    }
+    
+    canvas.renderAll();
+    setLayers(generateCanvasLayers(canvas));
+    onFrameUpdate({ ...frame, drawings: serializeCanvasObjects(canvas) });
+    setHasUnsavedChanges(true);
+    saveCanvasState(canvas);
+  };
+
   const handleSaveAndClose = () => {
     const canvas = canvasRef.current;
     if (canvas) {
@@ -256,6 +386,11 @@ export function CanvasEditor({
             onFrameUpdate({ ...frame, drawings });
           });
         }}
+        onClearCanvas={handleClearCanvas}
+        onUploadImage={handleUploadImage}
+        hasSelection={!!selectedLayerId}
+        onAlign={handleAlign}
+        onLayerOrder={handleLayerOrder}
       />
 
       {/* Editor Workspace & Sidebar Layout */}

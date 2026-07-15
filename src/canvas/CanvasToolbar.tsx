@@ -13,7 +13,19 @@ import {
   Grid, 
   ZoomIn, 
   ZoomOut, 
-  Maximize2 
+  Trash2,
+  ImagePlus,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  AlignStartVertical,
+  AlignCenterVertical,
+  AlignEndVertical,
+  BringToFront,
+  SendToBack,
+  ArrowUp,
+  ArrowDown,
+  Maximize2
 } from 'lucide-react';
 import type { DrawingTool } from '../types';
 import { ColorPickerPopover } from './ColorPickerPopover';
@@ -35,6 +47,11 @@ interface CanvasToolbarProps {
   onZoomChange: (zoom: number) => void;
   showGrid: boolean;
   onGridToggle: () => void;
+  onClearCanvas: () => void;
+  onUploadImage: () => void;
+  hasSelection?: boolean;
+  onAlign?: (alignment: 'left' | 'center' | 'right' | 'top' | 'middle' | 'bottom') => void;
+  onLayerOrder?: (action: 'front' | 'back' | 'forward' | 'backward') => void;
 }
 
 export function CanvasToolbar({
@@ -53,7 +70,12 @@ export function CanvasToolbar({
   zoom,
   onZoomChange,
   showGrid,
-  onGridToggle
+  onGridToggle,
+  onClearCanvas,
+  onUploadImage,
+  hasSelection,
+  onAlign,
+  onLayerOrder
 }: CanvasToolbarProps) {
   const tools: { id: DrawingTool; label: string; icon: any; shortcut: string }[] = [
     { id: 'select', label: 'Seleccionar (V)', icon: MousePointer, shortcut: 'V' },
@@ -181,7 +203,52 @@ export function CanvasToolbar({
             <Redo2 size={16} />
           </button>
         </div>
+
+        {/* Actions Group */}
+        <div className="flex items-center space-x-1 bg-dark-bg p-1 rounded-xl border border-dark-border/40">
+          <button
+            onClick={onUploadImage}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-dark-card cursor-pointer"
+            title="Subir Imagen / Sticker"
+          >
+            <ImagePlus size={16} />
+          </button>
+          <div className="w-[1px] h-4 bg-dark-border" />
+          <button
+            onClick={onClearCanvas}
+            className="p-1.5 rounded-lg text-red-400 hover:text-red-300 hover:bg-red-500/10 cursor-pointer"
+            title="Limpiar Todo"
+          >
+            <Trash2 size={16} />
+          </button>
+        </div>
       </div>
+
+      {/* Contextual Toolbar (Selection Actions) */}
+      {hasSelection && onAlign && onLayerOrder && (
+        <div className="w-full flex items-center justify-between mt-2 pt-2 border-t border-dark-border/50 animate-in fade-in duration-200">
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-1">
+              <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider mr-2">Alinear</span>
+              <button onClick={() => onAlign('left')} className="p-1 rounded-md text-gray-400 hover:text-white hover:bg-dark-card cursor-pointer" title="Alinear a la Izquierda"><AlignLeft size={16} /></button>
+              <button onClick={() => onAlign('center')} className="p-1 rounded-md text-gray-400 hover:text-white hover:bg-dark-card cursor-pointer" title="Centrar Horizontalmente"><AlignCenter size={16} /></button>
+              <button onClick={() => onAlign('right')} className="p-1 rounded-md text-gray-400 hover:text-white hover:bg-dark-card cursor-pointer" title="Alinear a la Derecha"><AlignRight size={16} /></button>
+              <div className="w-[1px] h-4 bg-dark-border mx-1" />
+              <button onClick={() => onAlign('top')} className="p-1 rounded-md text-gray-400 hover:text-white hover:bg-dark-card cursor-pointer" title="Alinear Arriba"><AlignStartVertical size={16} /></button>
+              <button onClick={() => onAlign('middle')} className="p-1 rounded-md text-gray-400 hover:text-white hover:bg-dark-card cursor-pointer" title="Centrar Verticalmente"><AlignCenterVertical size={16} /></button>
+              <button onClick={() => onAlign('bottom')} className="p-1 rounded-md text-gray-400 hover:text-white hover:bg-dark-card cursor-pointer" title="Alinear Abajo"><AlignEndVertical size={16} /></button>
+            </div>
+            
+            <div className="flex items-center space-x-1">
+              <span className="text-[10px] text-gray-500 font-semibold uppercase tracking-wider mr-2">Orden</span>
+              <button onClick={() => onLayerOrder('front')} className="p-1 rounded-md text-gray-400 hover:text-white hover:bg-dark-card cursor-pointer" title="Traer al Frente"><BringToFront size={16} /></button>
+              <button onClick={() => onLayerOrder('forward')} className="p-1 rounded-md text-gray-400 hover:text-white hover:bg-dark-card cursor-pointer" title="Traer un Nivel Adelante"><ArrowUp size={16} /></button>
+              <button onClick={() => onLayerOrder('backward')} className="p-1 rounded-md text-gray-400 hover:text-white hover:bg-dark-card cursor-pointer" title="Enviar un Nivel Atrás"><ArrowDown size={16} /></button>
+              <button onClick={() => onLayerOrder('back')} className="p-1 rounded-md text-gray-400 hover:text-white hover:bg-dark-card cursor-pointer" title="Enviar al Fondo"><SendToBack size={16} /></button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
