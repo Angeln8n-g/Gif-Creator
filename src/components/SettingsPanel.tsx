@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import type { RenderSettings, Resolution, OptimizationLevel, FrameImage } from '../types';
+import type { RenderSettings, Resolution, OptimizationLevel, FrameImage, OutputFormat } from '../types';
 import { Settings, Download, Video, Image as ImageIcon, Loader2, Gauge, Zap, Music, Trash2, Copyright, Mic, Square } from 'lucide-react';
 import { Uploader } from './Uploader';
 
@@ -60,6 +60,71 @@ export function SettingsPanel({
   const [isRecording, setIsRecording] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+
+  const handleFormatChange = (format: OutputFormat) => {
+    setSettings(s => {
+      const updated = { ...s, format };
+      const level = s.optimization;
+      if (level === 'high') {
+        updated.gifColors = 64;
+        updated.gifDither = 'bayer';
+        updated.webpQuality = 50;
+        updated.mp4Quality = 32;
+        updated.jpgQuality = 60;
+      } else if (level === 'medium') {
+        updated.gifColors = 128;
+        updated.gifDither = 'floyd_steinberg';
+        updated.webpQuality = 75;
+        updated.mp4Quality = 26;
+        updated.jpgQuality = 85;
+      } else if (level === 'low') {
+        updated.gifColors = 256;
+        updated.gifDither = 'floyd_steinberg';
+        updated.webpQuality = 90;
+        updated.mp4Quality = 21;
+        updated.jpgQuality = 90;
+      } else if (level === 'none') {
+        updated.gifColors = 256;
+        updated.gifDither = 'floyd_steinberg';
+        updated.webpQuality = 100;
+        updated.mp4Quality = 18;
+        updated.jpgQuality = 95;
+      }
+      return updated;
+    });
+  };
+
+  const handleOptimizationChange = (level: OptimizationLevel) => {
+    setSettings(s => {
+      const updated = { ...s, optimization: level };
+      if (level === 'high') {
+        updated.gifColors = 64;
+        updated.gifDither = 'bayer';
+        updated.webpQuality = 50;
+        updated.mp4Quality = 32;
+        updated.jpgQuality = 60;
+      } else if (level === 'medium') {
+        updated.gifColors = 128;
+        updated.gifDither = 'floyd_steinberg';
+        updated.webpQuality = 75;
+        updated.mp4Quality = 26;
+        updated.jpgQuality = 85;
+      } else if (level === 'low') {
+        updated.gifColors = 256;
+        updated.gifDither = 'floyd_steinberg';
+        updated.webpQuality = 90;
+        updated.mp4Quality = 21;
+        updated.jpgQuality = 90;
+      } else if (level === 'none') {
+        updated.gifColors = 256;
+        updated.gifDither = 'floyd_steinberg';
+        updated.webpQuality = 100;
+        updated.mp4Quality = 18;
+        updated.jpgQuality = 95;
+      }
+      return updated;
+    });
+  };
 
   const handleStartRecording = async () => {
     try {
@@ -200,7 +265,7 @@ export function SettingsPanel({
           <label className="block text-sm font-medium text-gray-300 mb-3">Formato de Exportación</label>
           <div className="grid grid-cols-5 gap-1.5">
             <button
-              onClick={() => setSettings(s => ({ ...s, format: 'gif' }))}
+              onClick={() => handleFormatChange('gif')}
               className={`flex flex-col items-center justify-center py-2 px-0.5 rounded-xl border transition-all duration-300 cursor-pointer ${
                 settings.format === 'gif'
                   ? 'bg-cta/20 border-cta text-cta shadow-[0_0_15px_rgba(225,29,72,0.2)]'
@@ -211,7 +276,7 @@ export function SettingsPanel({
               <span className="text-[10px] font-medium">GIF</span>
             </button>
             <button
-              onClick={() => setSettings(s => ({ ...s, format: 'mp4' }))}
+              onClick={() => handleFormatChange('mp4')}
               className={`flex flex-col items-center justify-center py-2 px-0.5 rounded-xl border transition-all duration-300 cursor-pointer ${
                 settings.format === 'mp4'
                   ? 'bg-cta/20 border-cta text-cta shadow-[0_0_15px_rgba(225,29,72,0.2)]'
@@ -222,7 +287,7 @@ export function SettingsPanel({
               <span className="text-[10px] font-medium">MP4</span>
             </button>
             <button
-              onClick={() => setSettings(s => ({ ...s, format: 'webp' }))}
+              onClick={() => handleFormatChange('webp')}
               className={`flex flex-col items-center justify-center py-2 px-0.5 rounded-xl border transition-all duration-300 cursor-pointer ${
                 settings.format === 'webp'
                   ? 'bg-cta/20 border-cta text-cta shadow-[0_0_15px_rgba(225,29,72,0.2)]'
@@ -233,7 +298,7 @@ export function SettingsPanel({
               <span className="text-[10px] font-medium">WebP</span>
             </button>
             <button
-              onClick={() => setSettings(s => ({ ...s, format: 'apng' }))}
+              onClick={() => handleFormatChange('apng')}
               className={`flex flex-col items-center justify-center py-2 px-0.5 rounded-xl border transition-all duration-300 cursor-pointer ${
                 settings.format === 'apng'
                   ? 'bg-cta/20 border-cta text-cta shadow-[0_0_15px_rgba(225,29,72,0.2)]'
@@ -244,7 +309,7 @@ export function SettingsPanel({
               <span className="text-[10px] font-medium">APNG</span>
             </button>
             <button
-              onClick={() => setSettings(s => ({ ...s, format: 'jpg' }))}
+              onClick={() => handleFormatChange('jpg')}
               className={`flex flex-col items-center justify-center py-2 px-0.5 rounded-xl border transition-all duration-300 cursor-pointer ${
                 settings.format === 'jpg'
                   ? 'bg-cta/20 border-cta text-cta shadow-[0_0_15px_rgba(225,29,72,0.2)]'
@@ -348,7 +413,7 @@ export function SettingsPanel({
               {optimizationLevels.map(level => (
                 <button
                   key={level.value}
-                  onClick={() => setSettings(s => ({ ...s, optimization: level.value }))}
+                  onClick={() => handleOptimizationChange(level.value)}
                   className={`flex flex-col items-center py-2.5 px-3 rounded-xl border text-center transition-all cursor-pointer ${
                     settings.optimization === level.value
                       ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400 shadow-[0_0_10px_rgba(16,185,129,0.1)]'

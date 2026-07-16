@@ -977,7 +977,7 @@ function getCanvasFilter(filter: string | undefined): string {
       const scaleFilter = `scale=${outW}:${outH}:force_original_aspect_ratio=decrease,pad=${outW}:${outH}:(ow-iw)/2:(oh-ih)/2`;
 
       if (settings.format === 'gif') {
-        const usePalette = settings.optimization !== 'none' || settings.gifColors !== undefined || settings.gifDither !== undefined;
+        const usePalette = true;
         if (usePalette) {
           // Two-pass GIF with palette for better quality and smaller size
           const statsMode = settings.optimization === 'high' ? 'diff' : 'full';

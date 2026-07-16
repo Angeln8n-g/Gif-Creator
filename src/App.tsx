@@ -35,6 +35,11 @@ function App() {
     resolution: '720p',
     globalSpeed: 1,
     optimization: 'medium',
+    gifColors: 128,
+    gifDither: 'floyd_steinberg',
+    webpQuality: 75,
+    mp4Quality: 26,
+    jpgQuality: 85,
   });
   const [resultUrl, setResultUrl] = useState<string | null>(null);
   const [isExtractingGif, setIsExtractingGif] = useState(false);
