@@ -142,6 +142,12 @@ export function SettingsPanel({
       const bytesPerFrame = width * height * 4;
       const estBytes = bytesPerFrame * totalFrames * compressionFactor;
       return estBytes / (1024 * 1024);
+    } else if (settings.format === 'jpg') {
+      const qv = settings.jpgQuality !== undefined ? settings.jpgQuality : 85;
+      const compressionFactor = 0.12 * (qv / 100);
+      const bytesPerFrame = width * height * 3;
+      const estBytes = bytesPerFrame * compressionFactor; // static single frame
+      return estBytes / (1024 * 1024);
     } else if (settings.format === 'webp') {
       const qv = settings.webpQuality !== undefined ? settings.webpQuality : (
         settings.optimization === 'high' ? 50 : settings.optimization === 'medium' ? 75 : 90
@@ -192,7 +198,7 @@ export function SettingsPanel({
         {/* Output Format */}
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-3">Formato de Exportación</label>
-          <div className="grid grid-cols-4 gap-1.5">
+          <div className="grid grid-cols-5 gap-1.5">
             <button
               onClick={() => setSettings(s => ({ ...s, format: 'gif' }))}
               className={`flex flex-col items-center justify-center py-2 px-0.5 rounded-xl border transition-all duration-300 cursor-pointer ${
@@ -236,6 +242,17 @@ export function SettingsPanel({
             >
               <ImageIcon size={16} className="mb-1" />
               <span className="text-[10px] font-medium">APNG</span>
+            </button>
+            <button
+              onClick={() => setSettings(s => ({ ...s, format: 'jpg' }))}
+              className={`flex flex-col items-center justify-center py-2 px-0.5 rounded-xl border transition-all duration-300 cursor-pointer ${
+                settings.format === 'jpg'
+                  ? 'bg-cta/20 border-cta text-cta shadow-[0_0_15px_rgba(225,29,72,0.2)]'
+                  : 'bg-dark-bg border-dark-border text-gray-400 hover:border-gray-500 hover:text-gray-300'
+              }`}
+            >
+              <ImageIcon size={16} className="mb-1" />
+              <span className="text-[10px] font-medium">JPG</span>
             </button>
           </div>
         </div>
@@ -597,6 +614,24 @@ export function SettingsPanel({
                   <span>CRF 18 (Mayor calidad)</span>
                   <span>CRF 38 (Menor peso)</span>
                 </div>
+              </div>
+            )}
+
+            {settings.format === 'jpg' && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-[11px] text-gray-400">
+                  <span>Calidad de Compresión</span>
+                  <span className="font-mono text-cta">{settings.jpgQuality !== undefined ? settings.jpgQuality : 85}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="10"
+                  max="100"
+                  step="5"
+                  value={settings.jpgQuality !== undefined ? settings.jpgQuality : 85}
+                  onChange={(e) => setSettings(s => ({ ...s, jpgQuality: parseInt(e.target.value) }))}
+                  className="w-full h-1 bg-dark-border rounded-lg appearance-none cursor-pointer accent-cta"
+                />
               </div>
             )}
           </div>

@@ -1276,8 +1276,6 @@ export const PreviewPlayer = forwardRef<PreviewPlayerRef, PreviewPlayerProps>(({
 
       // Clear
       ctx.clearRect(0, 0, w, h);
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, w, h);
 
       if (!img || !img.complete) {
         animRef.current = requestAnimationFrame(renderLoop);
@@ -1368,8 +1366,6 @@ export const PreviewPlayer = forwardRef<PreviewPlayerRef, PreviewPlayerProps>(({
       const w = canvas.width;
       const h = canvas.height;
       ctx.clearRect(0, 0, w, h);
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, w, h);
       if (img && img.complete) {
         applyCropAndDraw(ctx, img, frame, w, h);
         drawText(ctx, frame, 1, w, h);
@@ -1504,7 +1500,7 @@ export const PreviewPlayer = forwardRef<PreviewPlayerRef, PreviewPlayerProps>(({
 
       {/* Canvas */}
       {!isMinimized && (
-        <div className="relative bg-black flex items-center justify-center p-4">
+        <div className="relative bg-transparency-grid flex items-center justify-center p-4">
           <canvas
             ref={canvasRef}
             width={640}

@@ -284,7 +284,8 @@ function App() {
     if (!resultUrl) return;
     const a = document.createElement('a');
     a.href = resultUrl;
-    a.download = `creacion.${settings.format}`;
+    const ext = settings.format === 'apng' ? 'png' : settings.format;
+    a.download = `creacion.${ext}`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

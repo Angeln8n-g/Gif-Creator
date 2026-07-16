@@ -190,7 +190,7 @@ export interface FrameImage {
 }
 
 // ─── Render Settings ───
-export type OutputFormat = 'gif' | 'mp4' | 'webp' | 'apng';
+export type OutputFormat = 'gif' | 'mp4' | 'webp' | 'apng' | 'jpg';
 export type Resolution = '480p' | '720p' | '1080p' | 'custom';
 export type OptimizationLevel = 'none' | 'low' | 'medium' | 'high';
 
@@ -205,6 +205,7 @@ export interface RenderSettings {
   gifDither?: 'floyd_steinberg' | 'bayer' | 'none';
   webpQuality?: number;
   mp4Quality?: number;
+  jpgQuality?: number;
   watermarkText?: string;
   watermarkOpacity?: number; // 0.0 to 1.0
   watermarkPosition?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';

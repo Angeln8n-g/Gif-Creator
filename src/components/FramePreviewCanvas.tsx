@@ -821,8 +821,6 @@ export function FramePreviewCanvas({
     const progress = elapsed / loopDuration;
 
     ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, w, h);
 
     if (!img || !img.complete || !img.naturalWidth) {
       animRef.current = requestAnimationFrame(renderLoop);
@@ -905,7 +903,7 @@ export function FramePreviewCanvas({
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
       style={{ cursor: cursorStyle }}
-      className={`w-full rounded-lg border border-dark-border/50 shadow-inner select-none touch-none ${className}`}
+      className={`w-full rounded-lg border border-dark-border/50 shadow-inner select-none touch-none bg-transparency-grid ${className}`}
     />
   );
 }

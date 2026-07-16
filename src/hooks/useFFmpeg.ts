@@ -222,8 +222,7 @@ function getCanvasFilter(filter: string | undefined): string {
     const progress = totalSubFrames > 1 ? subFrameIndex / (totalSubFrames - 1) : 0;
 
     // Clear
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, width, height);
+    ctx.clearRect(0, 0, width, height);
 
     // ── Apply frame-level animation ──
     ctx.save();
@@ -1036,6 +1035,15 @@ function getCanvasFilter(filter: string | undefined): string {
           '-c:v', 'apng', '-plays', '0',
           '-y', outputName
         ]);
+      } else if (settings.format === 'jpg') {
+        const qv = settings.jpgQuality !== undefined ? settings.jpgQuality : 85;
+        // Map 10-100 quality scale to FFmpeg's -q:v quality scale (1-31, where 1 is best)
+        const qScale = Math.max(1, Math.min(31, Math.round(31 - ((qv - 10) / 90) * 30)));
+        await ffmpeg.exec([
+          '-i', 'frame_0.png',
+          '-q:v', String(qScale),
+          '-y', outputName
+        ]);
       } else {
         // MP4
         const totalDuration = frames.reduce((acc, f) => acc + (f.duration / settings.globalSpeed), 0);
@@ -1151,7 +1159,12 @@ function getCanvasFilter(filter: string | undefined): string {
       setProgress(90);
 
       const data = await ffmpeg.readFile(outputName);
-      const mimeType = settings.format === 'gif' ? 'image/gif' : settings.format === 'webp' ? 'image/webp' : settings.format === 'apng' ? 'image/png' : 'video/mp4';
+      const mimeType = 
+        settings.format === 'gif' ? 'image/gif' : 
+        settings.format === 'webp' ? 'image/webp' : 
+        settings.format === 'apng' ? 'image/png' : 
+        settings.format === 'jpg' ? 'image/jpeg' : 
+        'video/mp4';
       const blob = new Blob([data as unknown as BlobPart], { type: mimeType });
       const url = URL.createObjectURL(blob);
       

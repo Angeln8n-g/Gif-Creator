@@ -29,11 +29,6 @@ export default defineConfig({
     crossOriginIsolationPlugin,
   ],
   optimizeDeps: {
-    exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util']
-  },
-  build: {
-    rollupOptions: {
-      external: ['onnxruntime-web', 'onnxruntime-web/webgpu']
-    }
+    exclude: ['@ffmpeg/ffmpeg', '@ffmpeg/util', '@imgly/background-removal']
   }
 })
